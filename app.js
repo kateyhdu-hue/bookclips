@@ -42,16 +42,6 @@ function renderBooks() {
     return;
   }
 
-  function normalizeBookText(text) {
-  return text
-    // 把中文句子中间的换行合并掉
-    .replace(/([^\n。！？!?；;：:])\n(?=[^\n])/g, "$1")
-    // 把多余空格压缩
-    .replace(/[ \t]+/g, " ")
-    // 保留真正段落：两个以上换行变成一个段落换行
-    .replace(/\n{2,}/g, "\n\n")
-    .trim();
-}
   
   state.books.forEach(book => {
     const card = document.createElement("div");
@@ -511,3 +501,14 @@ stage.addEventListener("touchmove", moveSelection, { passive: false });
 stage.addEventListener("touchend", endSelection);
 
 render();
+
+function normalizeBookText(text) {
+  return text
+    // 把中文句子中间的换行合并掉
+    .replace(/([^\n。！？!?；;：:])\n(?=[^\n])/g, "$1")
+    // 把多余空格压缩
+    .replace(/[ \t]+/g, " ")
+    // 保留真正段落：两个以上换行变成一个段落换行
+    .replace(/\n{2,}/g, "\n\n")
+    .trim();
+}
