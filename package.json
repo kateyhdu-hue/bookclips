@@ -1,19 +1,17 @@
 {
   "name": "bookclips",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
-  "description": "A physical book clipping web app with Google Vision OCR and AI correction.",
+  "description": "Book clipping app with Supabase sync, Google Vision OCR and AI correction.",
   "scripts": {
     "start": "python3 -m http.server 3000"
   },
   "keywords": [
     "book",
     "ocr",
+    "supabase",
     "google-vision",
-    "openai",
-    "reading",
-    "notes",
-    "clips"
+    "openai"
   ],
   "license": "MIT"
 }

@@ -11,12 +11,26 @@
     <header>
       <div>
         <h1>BookClips 摘书</h1>
-        <p>拍照、框选、Google Vision OCR、AI 自动修正，把实体书句子保存成电子书摘。</p>
+        <p>拍照、框选、Google Vision OCR、AI 自动修正，并云同步你的书摘。</p>
       </div>
-      <button id="exportBtn">导出 JSON</button>
+      <div class="header-actions"><span id="userEmail" class="user-email"></span><button id="syncBtn" class="secondary hidden">同步</button><button id="exportBtn" class="hidden">导出 JSON</button><button id="logoutBtn" class="danger hidden">退出</button></div>
     </header>
 
-    <main>
+    <section id="authPanel" class="panel auth-panel">
+      <h2>登录 / 注册</h2>
+      <p>用邮箱登录后，书籍和摘录会同步到云端，电脑和手机都能看到。</p>
+      <div class="auth-grid">
+        <input id="authEmail" type="email" placeholder="邮箱" />
+        <input id="authPassword" type="password" placeholder="密码，至少 6 位" />
+      </div>
+      <div class="actions">
+        <button id="signUpBtn">注册</button>
+        <button id="signInBtn" class="secondary">登录</button>
+      </div>
+      <div id="authStatus" class="hint"></div>
+    </section>
+
+    <main id="appMain" class="hidden">
       <section class="panel">
         <h2>我的书</h2>
         <div class="new-book">

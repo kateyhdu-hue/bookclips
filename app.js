@@ -1,7 +1,11 @@
-const STORAGE_KEY = "bookclips.v4";
+const STORAGE_KEY = "bookclips.v5.local";
+const SUPABASE_URL = "__SUPABASE_URL__";
+const SUPABASE_ANON_KEY = "__SUPABASE_ANON_KEY__";
 
-let state = loadState();
-let activeBookId = state.books[0]?.id || null;
+let supabaseClient = null;
+let currentUser = null;
+let state = { books: [] };
+let activeBookId = null;
 let imageFile = null;
 let selection = null;
 let dragStart = null;
@@ -12,7 +16,7 @@ function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-function loadState() {
+function loadLocalState() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { books: [] };
   } catch {
@@ -20,8 +24,120 @@ function loadState() {
   }
 }
 
-function saveState() {
+function saveLocalState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function initSupabase() {
+  if (!window.supabase || SUPABASE_URL.includes("__") || SUPABASE_ANON_KEY.includes("__")) {
+    $("authStatus").textContent = "Supabase 尚未配置。请先在 app.js 填入 SUPABASE_URL 和 SUPABASE_ANON_KEY。";
+    return;
+  }
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+async function initApp() {
+  initSupabase();
+  if (!supabaseClient) {
+    state = loadLocalState();
+    activeBookId = state.books[0]?.id || null;
+    showApp(false);
+    render();
+    return;
+  }
+
+  const { data } = await supabaseClient.auth.getSession();
+  currentUser = data.session?.user || null;
+
+  supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+    currentUser = session?.user || null;
+    if (currentUser) {
+      await loadCloudData();
+      showApp(true);
+    } else {
+      state = { books: [] };
+      activeBookId = null;
+      showApp(false);
+    }
+    render();
+  });
+
+  if (currentUser) {
+    await loadCloudData();
+    showApp(true);
+  } else {
+    showApp(false);
+  }
+  render();
+}
+
+function showApp(isLoggedIn) {
+  $("authPanel").classList.toggle("hidden", isLoggedIn);
+  $("appMain").classList.toggle("hidden", !isLoggedIn);
+  $("logoutBtn").classList.toggle("hidden", !isLoggedIn);
+  $("syncBtn").classList.toggle("hidden", !isLoggedIn);
+  $("exportBtn").classList.toggle("hidden", !isLoggedIn);
+  $("userEmail").textContent = isLoggedIn ? currentUser.email : "";
+}
+
+async function signUp() {
+  const email = $("authEmail").value.trim();
+  const password = $("authPassword").value.trim();
+  if (!email || !password) return alert("请输入邮箱和密码");
+  $("authStatus").textContent = "正在注册……";
+  const { error } = await supabaseClient.auth.signUp({ email, password });
+  $("authStatus").textContent = error ? error.message : "注册成功。若开启邮箱确认，请先查收确认邮件；否则可以直接登录。";
+}
+
+async function signIn() {
+  const email = $("authEmail").value.trim();
+  const password = $("authPassword").value.trim();
+  if (!email || !password) return alert("请输入邮箱和密码");
+  $("authStatus").textContent = "正在登录……";
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  $("authStatus").textContent = error ? error.message : "";
+}
+
+async function signOut() {
+  await supabaseClient.auth.signOut();
+}
+
+async function loadCloudData() {
+  if (!currentUser) return;
+
+  const { data: books, error: bookError } = await supabaseClient
+    .from("books")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (bookError) return alert("读取书籍失败：" + bookError.message);
+
+  const { data: clips, error: clipError } = await supabaseClient
+    .from("clips")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (clipError) return alert("读取书摘失败：" + clipError.message);
+
+  state.books = (books || []).map(book => ({
+    id: book.id,
+    title: book.title,
+    author: book.author || "",
+    createdAt: book.created_at,
+    clips: (clips || [])
+      .filter(clip => clip.book_id === book.id)
+      .map(clip => ({
+        id: clip.id,
+        text: clip.text,
+        page: clip.page || "",
+        note: clip.note || "",
+        tags: clip.tags || "",
+        createdAt: clip.created_at
+      }))
+  }));
+
+  if (!activeBookId || !state.books.find(b => b.id === activeBookId)) {
+    activeBookId = state.books[0]?.id || null;
+  }
+  saveLocalState();
 }
 
 function activeBook() {
@@ -42,7 +158,6 @@ function renderBooks() {
     return;
   }
 
-  
   state.books.forEach(book => {
     const card = document.createElement("div");
     card.className = "book-card" + (book.id === activeBookId ? " active" : "");
@@ -69,108 +184,32 @@ function renderWorkspace() {
   renderClips();
 }
 
-function addBook() {
+async function addBook() {
   const title = $("bookTitle").value.trim();
   const author = $("bookAuthor").value.trim();
   if (!title) return alert("请先输入书名");
+  if (!currentUser) return alert("请先登录");
+
+  const { data, error } = await supabaseClient
+    .from("books")
+    .insert({ title, author, user_id: currentUser.id })
+    .select()
+    .single();
+  if (error) return alert("新增书籍失败：" + error.message);
 
   const book = {
-    id: uid(),
-    title,
-    author,
-    createdAt: new Date().toISOString(),
+    id: data.id,
+    title: data.title,
+    author: data.author || "",
+    createdAt: data.created_at,
     clips: []
   };
-
   state.books.unshift(book);
   activeBookId = book.id;
   $("bookTitle").value = "";
   $("bookAuthor").value = "";
-  saveState();
+  saveLocalState();
   render();
-}
-
-function handleImageUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  imageFile = file;
-  selection = null;
-  hideSelection();
-
-  const url = URL.createObjectURL(file);
-  $("previewImage").src = url;
-  $("cropCard").classList.remove("hidden");
-  $("ocrStatus").textContent = "图片已载入。请在图片上拖拽框选要识别的文字区域。";
-}
-
-function getPoint(event) {
-  const touch = event.touches?.[0] || event.changedTouches?.[0];
-  const clientX = touch ? touch.clientX : event.clientX;
-  const clientY = touch ? touch.clientY : event.clientY;
-  const rect = $("imageStage").getBoundingClientRect();
-
-  return {
-    x: clientX - rect.left + $("imageStage").scrollLeft,
-    y: clientY - rect.top + $("imageStage").scrollTop
-  };
-}
-
-function startSelection(event) {
-  if (!$("previewImage").src) return;
-  event.preventDefault();
-  dragStart = getPoint(event);
-  selection = { x: dragStart.x, y: dragStart.y, w: 0, h: 0 };
-  updateSelectionBox();
-}
-
-function moveSelection(event) {
-  if (!dragStart) return;
-  event.preventDefault();
-  const point = getPoint(event);
-
-  selection = {
-    x: Math.min(dragStart.x, point.x),
-    y: Math.min(dragStart.y, point.y),
-    w: Math.abs(point.x - dragStart.x),
-    h: Math.abs(point.y - dragStart.y)
-  };
-
-  updateSelectionBox();
-}
-
-function endSelection() {
-  if (!dragStart) return;
-  dragStart = null;
-
-  if (!selection || selection.w < 20 || selection.h < 20) {
-    selection = null;
-    hideSelection();
-    $("ocrStatus").textContent = "框选太小，请重新拖拽选择文字区域。";
-    return;
-  }
-
-  $("ocrStatus").textContent = "已框选区域。点击「识别框选区域」。";
-}
-
-function updateSelectionBox() {
-  if (!selection) return hideSelection();
-  const box = $("selectionBox");
-  box.classList.remove("hidden");
-  box.style.left = `${selection.x}px`;
-  box.style.top = `${selection.y}px`;
-  box.style.width = `${selection.w}px`;
-  box.style.height = `${selection.h}px`;
-}
-
-function hideSelection() {
-  $("selectionBox").classList.add("hidden");
-}
-
-function clearSelection() {
-  selection = null;
-  hideSelection();
-  $("ocrStatus").textContent = "已清除框选。可以重新拖拽选择文字区域。";
 }
 
 async function runOcr(useCrop = true) {
@@ -370,22 +409,28 @@ function saveSelectedText() {
   saveClip(selected);
 }
 
-function saveClip(text) {
+async function saveClip(text) {
   const book = activeBook();
   if (!book) return;
-
+  if (!currentUser) return alert("请先登录");
   const page = $("pageNumber").value.trim();
 
-  book.clips.unshift({
-    id: uid(),
-    text,
-    page,
-    note: "",
-    tags: "",
-    createdAt: new Date().toISOString()
-  });
+  const { data, error } = await supabaseClient
+    .from("clips")
+    .insert({ user_id: currentUser.id, book_id: book.id, text, page, note: "", tags: "" })
+    .select()
+    .single();
+  if (error) return alert("保存书摘失败：" + error.message);
 
-  saveState();
+  book.clips.unshift({
+    id: data.id,
+    text: data.text,
+    page: data.page || "",
+    note: data.note || "",
+    tags: data.tags || "",
+    createdAt: data.created_at
+  });
+  saveLocalState();
   render();
 }
 
@@ -426,10 +471,12 @@ function renderClips() {
       </div>
     `;
 
-    div.querySelector(".saveNote").onclick = () => {
+    div.querySelector(".saveNote").onclick = async () => {
       clip.tags = div.querySelector(".tags").value.trim();
       clip.note = div.querySelector(".note").value.trim();
-      saveState();
+      const { error } = await supabaseClient.from("clips").update({ tags: clip.tags, note: clip.note }).eq("id", clip.id);
+      if (error) return alert("更新失败：" + error.message);
+      saveLocalState();
       render();
     };
 
@@ -439,9 +486,11 @@ function renderClips() {
       alert("已复制");
     };
 
-    div.querySelector(".deleteClip").onclick = () => {
+    div.querySelector(".deleteClip").onclick = async () => {
+      const { error } = await supabaseClient.from("clips").delete().eq("id", clip.id);
+      if (error) return alert("删除失败：" + error.message);
       book.clips = book.clips.filter(c => c.id !== clip.id);
-      saveState();
+      saveLocalState();
       render();
     };
 
@@ -449,13 +498,15 @@ function renderClips() {
   });
 }
 
-function deleteBook() {
+async function deleteBook() {
   const book = activeBook();
   if (!book) return;
   if (!confirm(`确定删除《${book.title}》及其所有摘录吗？`)) return;
+  const { error } = await supabaseClient.from("books").delete().eq("id", book.id);
+  if (error) return alert("删除书籍失败：" + error.message);
   state.books = state.books.filter(b => b.id !== book.id);
   activeBookId = state.books[0]?.id || null;
-  saveState();
+  saveLocalState();
   render();
 }
 
@@ -469,6 +520,19 @@ function exportJson() {
   URL.revokeObjectURL(url);
 }
 
+function normalizeBookText(text) {
+  return text
+    .replace(/([^\n。！？!?；;：:])\n(?=[^\n])/g, "$1")
+    .replace(/(?<=[\u4e00-\u9fff]),(?=[\u4e00-\u9fff])/g, "，")
+    .replace(/(?<=[\u4e00-\u9fff]):(?=[\u4e00-\u9fff])/g, "：")
+    .replace(/(?<=[\u4e00-\u9fff]);(?=[\u4e00-\u9fff])/g, "；")
+    .replace(/(?<=[\u4e00-\u9fff])\?(?=[\u4e00-\u9fff])/g, "？")
+    .replace(/(?<=[\u4e00-\u9fff])!(?=[\u4e00-\u9fff])/g, "！")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{2,}/g, "\n\n")
+    .trim();
+}
+
 function escapeHtml(str) {
   return String(str)
     .replaceAll("&", "&amp;")
@@ -480,6 +544,10 @@ function escapeAttr(str) {
   return escapeHtml(str).replaceAll('"', "&quot;");
 }
 
+$("signUpBtn").onclick = signUp;
+$("signInBtn").onclick = signIn;
+$("logoutBtn").onclick = signOut;
+$("syncBtn").onclick = async () => { await loadCloudData(); render(); alert("已同步"); };
 $("addBookBtn").onclick = addBook;
 $("imageInput").onchange = handleImageUpload;
 $("ocrCropBtn").onclick = () => runOcr(true);
@@ -500,25 +568,4 @@ stage.addEventListener("touchstart", startSelection, { passive: false });
 stage.addEventListener("touchmove", moveSelection, { passive: false });
 stage.addEventListener("touchend", endSelection);
 
-render();
-
-function normalizeBookText(text) {
-  return text
-    // 把中文句子中间的换行合并掉
-    .replace(/([^\n。！？!?；;：:])\n(?=[^\n])/g, "$1")
-
-    // 仅在中文字符之间，把半角标点替换为全角
-    .replace(/(?<=[\u4e00-\u9fff]),(?=[\u4e00-\u9fff])/g, "，")
-    .replace(/(?<=[\u4e00-\u9fff]):(?=[\u4e00-\u9fff])/g, "：")
-    .replace(/(?<=[\u4e00-\u9fff]);(?=[\u4e00-\u9fff])/g, "；")
-    .replace(/(?<=[\u4e00-\u9fff])\?(?=[\u4e00-\u9fff])/g, "？")
-    .replace(/(?<=[\u4e00-\u9fff])!(?=[\u4e00-\u9fff])/g, "！")
-
-    // 把多余空格压缩
-    .replace(/[ \t]+/g, " ")
-
-    // 保留真正段落：两个以上换行变成一个段落换行
-    .replace(/\n{2,}/g, "\n\n")
-
-    .trim();
-}
+initApp();

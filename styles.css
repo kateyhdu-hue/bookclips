@@ -28,6 +28,11 @@ header {
   margin-bottom: 20px;
 }
 
+.header-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:flex-end; }
+.user-email { color: var(--muted); font-size: 14px; }
+.auth-panel { margin-bottom: 18px; }
+.auth-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+
 h1, h2, h3 { margin: 0 0 8px; }
 p { margin: 0; color: var(--muted); }
 
@@ -268,8 +273,9 @@ button.danger { background: var(--danger); }
 @media (max-width: 850px) {
   .app { padding: 14px; }
   header { align-items: flex-start; flex-direction: column; }
+  .header-actions { justify-content:flex-start; }
   main { grid-template-columns: 1fr; }
   .workspace-header { flex-direction: column; }
-  .settings-grid { grid-template-columns: 1fr; }
+  .settings-grid, .auth-grid { grid-template-columns: 1fr; }
   .checkbox-label { padding-top: 0; }
 }
