@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BookClips 摘书</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>BookClips 摘书</h1>
+        <p>拍照识别实体书，把喜欢的句子保存成电子书摘。</p>
+      </div>
+      <button id="exportBtn">导出 JSON</button>
+    </header>
+
+    <main>
+      <section class="panel">
+        <h2>我的书</h2>
+        <div class="new-book">
+          <input id="bookTitle" placeholder="书名，例如：存在主义咖啡馆" />
+          <input id="bookAuthor" placeholder="作者，可选" />
+          <button id="addBookBtn">新增书籍</button>
+        </div>
+        <div id="bookList" class="book-list"></div>
+      </section>
+
+      <section class="panel main-panel">
+        <div id="emptyState" class="empty">
+          <h2>先新增或选择一本书</h2>
+          <p>然后上传书页照片，OCR 识别文字，再保存摘录。</p>
+        </div>
+
+        <div id="bookWorkspace" class="hidden">
+          <div class="workspace-header">
+            <div>
+              <h2 id="activeBookTitle"></h2>
+              <p id="activeBookMeta"></p>
+            </div>
+            <button id="deleteBookBtn" class="danger">删除此书</button>
+          </div>
+
+          <div class="ocr-card">
+            <h3>1. 上传 / 拍照书页</h3>
+            <input id="pageNumber" placeholder="页码，例如 37" />
+            <input id="imageInput" type="file" accept="image/*" capture="environment" />
+            <button id="ocrBtn">识别文字</button>
+            <div id="ocrStatus"></div>
+          </div>
+
+          <div class="ocr-card">
+            <h3>2. 识别结果</h3>
+            <textarea id="ocrText" placeholder="OCR 结果会显示在这里，也可以直接粘贴文字。"></textarea>
+            <div class="actions">
+              <button id="splitBtn">自动分句</button>
+              <button id="saveSelectedTextBtn">保存选中文字</button>
+            </div>
+          </div>
+
+          <div class="ocr-card">
+            <h3>3. 选择句子保存</h3>
+            <div id="sentenceList" class="sentence-list"></div>
+          </div>
+
+          <div class="ocr-card">
+            <h3>已保存书摘</h3>
+            <input id="searchInput" placeholder="搜索本书书摘、标签或笔记" />
+            <div id="clipList" class="clip-list"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
