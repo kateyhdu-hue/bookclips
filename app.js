@@ -1,7 +1,10 @@
-const STORAGE_KEY = "bookclips.v1";
+const STORAGE_KEY = "bookclips.v3";
 
 let state = loadState();
 let activeBookId = state.books[0]?.id || null;
+let imageFile = null;
+let selection = null;
+let dragStart = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -86,30 +89,250 @@ function addBook() {
   render();
 }
 
-async function runOcr() {
-  const file = $("imageInput").files[0];
-  if (!file) return alert("请先选择或拍摄一张书页照片");
+function handleImageUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
 
-  $("ocrStatus").textContent = "正在识别文字，第一次使用可能稍慢……";
-  $("ocrBtn").disabled = true;
+  imageFile = file;
+  selection = null;
+  hideSelection();
+
+  const url = URL.createObjectURL(file);
+  $("previewImage").src = url;
+  $("cropCard").classList.remove("hidden");
+  $("ocrStatus").textContent = "图片已载入。请在图片上拖拽框选要识别的文字区域。";
+}
+
+function getPoint(event) {
+  const touch = event.touches?.[0] || event.changedTouches?.[0];
+  const clientX = touch ? touch.clientX : event.clientX;
+  const clientY = touch ? touch.clientY : event.clientY;
+  const rect = $("imageStage").getBoundingClientRect();
+
+  return {
+    x: clientX - rect.left + $("imageStage").scrollLeft,
+    y: clientY - rect.top + $("imageStage").scrollTop
+  };
+}
+
+function startSelection(event) {
+  if (!$("previewImage").src) return;
+  event.preventDefault();
+  dragStart = getPoint(event);
+  selection = { x: dragStart.x, y: dragStart.y, w: 0, h: 0 };
+  updateSelectionBox();
+}
+
+function moveSelection(event) {
+  if (!dragStart) return;
+  event.preventDefault();
+  const point = getPoint(event);
+
+  selection = {
+    x: Math.min(dragStart.x, point.x),
+    y: Math.min(dragStart.y, point.y),
+    w: Math.abs(point.x - dragStart.x),
+    h: Math.abs(point.y - dragStart.y)
+  };
+
+  updateSelectionBox();
+}
+
+function endSelection() {
+  if (!dragStart) return;
+  dragStart = null;
+
+  if (!selection || selection.w < 20 || selection.h < 20) {
+    selection = null;
+    hideSelection();
+    $("ocrStatus").textContent = "框选太小，请重新拖拽选择文字区域。";
+    return;
+  }
+
+  $("ocrStatus").textContent = "已框选区域。点击「识别框选区域」。";
+}
+
+function updateSelectionBox() {
+  if (!selection) return hideSelection();
+  const box = $("selectionBox");
+  box.classList.remove("hidden");
+  box.style.left = `${selection.x}px`;
+  box.style.top = `${selection.y}px`;
+  box.style.width = `${selection.w}px`;
+  box.style.height = `${selection.h}px`;
+}
+
+function hideSelection() {
+  $("selectionBox").classList.add("hidden");
+}
+
+function clearSelection() {
+  selection = null;
+  hideSelection();
+  $("ocrStatus").textContent = "已清除框选。可以重新拖拽选择文字区域。";
+}
+
+async function runOcr(useCrop = true) {
+  if (!imageFile) return alert("请先选择或拍摄一张书页照片");
+
+  let sourceBlob = imageFile;
+
+  if (useCrop) {
+    if (!selection) return alert("请先在图片上框选要识别的文字区域");
+    sourceBlob = await makeCroppedImage();
+  } else {
+    sourceBlob = await makeFullImage();
+  }
+
+  const engine = $("ocrEngine").value;
+  const language = $("ocrLanguage").value;
+
+  $("ocrCropBtn").disabled = true;
+  $("ocrFullBtn").disabled = true;
 
   try {
-    const result = await Tesseract.recognize(file, "chi_sim+eng", {
-      logger: m => {
-        if (m.status) {
-          const pct = m.progress ? ` ${Math.round(m.progress * 100)}%` : "";
-          $("ocrStatus").textContent = `${m.status}${pct}`;
-        }
-      }
-    });
-    $("ocrText").value = result.data.text.trim();
+    let text = "";
+
+    if (engine === "cloud") {
+      $("ocrStatus").textContent = useCrop ? "正在用云端 OCR 识别框选区域……" : "正在用云端 OCR 识别整张图片……";
+      text = await runCloudOcr(sourceBlob, language);
+    } else {
+      $("ocrStatus").textContent = useCrop ? "正在用本地 OCR 识别框选区域……" : "正在用本地 OCR 识别整张图片……";
+      text = await runLocalOcr(sourceBlob, language);
+    }
+
+    $("ocrText").value = text.trim();
     $("ocrStatus").textContent = "识别完成。你可以编辑文字，或自动分句。";
   } catch (e) {
     console.error(e);
-    $("ocrStatus").textContent = "识别失败。可以换一张更清晰的照片，或手动粘贴文字。";
+
+    if (engine === "cloud") {
+      $("ocrStatus").textContent = "云端 OCR 失败，正在自动改用本地 OCR……";
+      try {
+        const text = await runLocalOcr(sourceBlob, language);
+        $("ocrText").value = text.trim();
+        $("ocrStatus").textContent = "本地备用 OCR 完成。";
+      } catch (localError) {
+        console.error(localError);
+        $("ocrStatus").textContent = "云端和本地 OCR 都失败。请检查 API key、图片大小，或换更清晰的照片。";
+      }
+    } else {
+      $("ocrStatus").textContent = "识别失败。可以换一张更清晰的照片，或重新框选更小区域。";
+    }
   } finally {
-    $("ocrBtn").disabled = false;
+    $("ocrCropBtn").disabled = false;
+    $("ocrFullBtn").disabled = false;
   }
+}
+
+async function runCloudOcr(blob, language) {
+  const base64Image = await blobToDataUrl(blob);
+
+  const response = await fetch("/api/ocr", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      base64Image,
+      language
+    })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || "Cloud OCR failed");
+  }
+
+  return data.text || "";
+}
+
+async function runLocalOcr(blob, language) {
+  const langMap = {
+    chs: "chi_sim+eng",
+    cht: "chi_tra+eng",
+    eng: "eng"
+  };
+
+  const result = await Tesseract.recognize(blob, langMap[language] || "chi_sim+eng", {
+    logger: m => {
+      if (m.status) {
+        const pct = m.progress ? ` ${Math.round(m.progress * 100)}%` : "";
+        $("ocrStatus").textContent = `${m.status}${pct}`;
+      }
+    }
+  });
+
+  return result.data.text || "";
+}
+
+async function makeFullImage() {
+  const img = $("previewImage");
+  const canvas = $("cropCanvas");
+  const ctx = canvas.getContext("2d");
+
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  ctx.drawImage(img, 0, 0);
+  preprocessCanvas(ctx, canvas.width, canvas.height);
+
+  return new Promise(resolve => {
+    canvas.toBlob(blob => resolve(blob), "image/png");
+  });
+}
+
+async function makeCroppedImage() {
+  const img = $("previewImage");
+  const canvas = $("cropCanvas");
+  const ctx = canvas.getContext("2d");
+
+  const scaleX = img.naturalWidth / img.clientWidth;
+  const scaleY = img.naturalHeight / img.clientHeight;
+
+  const sx = Math.max(0, Math.round(selection.x * scaleX));
+  const sy = Math.max(0, Math.round(selection.y * scaleY));
+  const sw = Math.min(img.naturalWidth - sx, Math.round(selection.w * scaleX));
+  const sh = Math.min(img.naturalHeight - sy, Math.round(selection.h * scaleY));
+
+  canvas.width = sw;
+  canvas.height = sh;
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+  preprocessCanvas(ctx, sw, sh);
+
+  return new Promise(resolve => {
+    canvas.toBlob(blob => resolve(blob), "image/png");
+  });
+}
+
+function preprocessCanvas(ctx, width, height) {
+  try {
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+    const contrast = 1.35;
+    const intercept = 128 * (1 - contrast);
+
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      const v = Math.max(0, Math.min(255, gray * contrast + intercept));
+      data[i] = v;
+      data[i + 1] = v;
+      data[i + 2] = v;
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+  } catch (e) {
+    console.warn("Image preprocessing skipped", e);
+  }
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
 function splitSentences() {
@@ -264,11 +487,23 @@ function escapeAttr(str) {
 }
 
 $("addBookBtn").onclick = addBook;
-$("ocrBtn").onclick = runOcr;
+$("imageInput").onchange = handleImageUpload;
+$("ocrCropBtn").onclick = () => runOcr(true);
+$("ocrFullBtn").onclick = () => runOcr(false);
+$("clearSelectionBtn").onclick = clearSelection;
 $("splitBtn").onclick = splitSentences;
 $("saveSelectedTextBtn").onclick = saveSelectedText;
 $("deleteBookBtn").onclick = deleteBook;
 $("exportBtn").onclick = exportJson;
 $("searchInput").oninput = renderClips;
+
+const stage = $("imageStage");
+stage.addEventListener("mousedown", startSelection);
+stage.addEventListener("mousemove", moveSelection);
+window.addEventListener("mouseup", endSelection);
+
+stage.addEventListener("touchstart", startSelection, { passive: false });
+stage.addEventListener("touchmove", moveSelection, { passive: false });
+stage.addEventListener("touchend", endSelection);
 
 render();

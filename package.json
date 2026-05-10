@@ -1,8 +1,8 @@
 {
   "name": "bookclips",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
-  "description": "A simple OCR-based physical book clipping web app.",
+  "description": "A physical book clipping web app with crop selection and cloud OCR proxy.",
   "scripts": {
     "start": "python3 -m http.server 3000"
   },
@@ -11,7 +11,9 @@
     "ocr",
     "reading",
     "notes",
-    "clips"
+    "clips",
+    "crop",
+    "vercel"
   ],
   "license": "MIT"
 }

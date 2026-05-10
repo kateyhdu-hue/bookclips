@@ -12,7 +12,7 @@
     <header>
       <div>
         <h1>BookClips 摘书</h1>
-        <p>拍照识别实体书，把喜欢的句子保存成电子书摘。</p>
+        <p>拍照、框选文字区域、云端 OCR 识别，把实体书句子保存成电子书摘。</p>
       </div>
       <button id="exportBtn">导出 JSON</button>
     </header>
@@ -31,7 +31,7 @@
       <section class="panel main-panel">
         <div id="emptyState" class="empty">
           <h2>先新增或选择一本书</h2>
-          <p>然后上传书页照片，OCR 识别文字，再保存摘录。</p>
+          <p>然后上传书页照片，框选文字区域，再保存摘录。</p>
         </div>
 
         <div id="bookWorkspace" class="hidden">
@@ -47,12 +47,48 @@
             <h3>1. 上传 / 拍照书页</h3>
             <input id="pageNumber" placeholder="页码，例如 37" />
             <input id="imageInput" type="file" accept="image/*" capture="environment" />
-            <button id="ocrBtn">识别文字</button>
+
+            <div class="settings-grid">
+              <label>
+                OCR 引擎
+                <select id="ocrEngine">
+                  <option value="cloud" selected>云端 OCR（推荐）</option>
+                  <option value="local">本地 OCR（备用）</option>
+                </select>
+              </label>
+
+              <label>
+                语言
+                <select id="ocrLanguage">
+                  <option value="chs" selected>简体中文</option>
+                  <option value="cht">繁体中文</option>
+                  <option value="eng">英文</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="hint">
+              建议：单页拍摄、光线均匀、文字尽量占满画面。上传后用鼠标或手指框选要识别的文字区域。
+            </div>
+          </div>
+
+          <div id="cropCard" class="ocr-card hidden">
+            <h3>2. 框选要识别的文字</h3>
+            <div class="toolbar">
+              <button id="ocrCropBtn">识别框选区域</button>
+              <button id="ocrFullBtn" class="secondary">识别整张图</button>
+              <button id="clearSelectionBtn" class="secondary">清除框选</button>
+            </div>
+            <div id="imageStage" class="image-stage">
+              <img id="previewImage" alt="书页预览" />
+              <div id="selectionBox" class="selection-box hidden"></div>
+            </div>
+            <canvas id="cropCanvas" class="hidden"></canvas>
             <div id="ocrStatus"></div>
           </div>
 
           <div class="ocr-card">
-            <h3>2. 识别结果</h3>
+            <h3>3. 识别结果</h3>
             <textarea id="ocrText" placeholder="OCR 结果会显示在这里，也可以直接粘贴文字。"></textarea>
             <div class="actions">
               <button id="splitBtn">自动分句</button>
@@ -61,7 +97,7 @@
           </div>
 
           <div class="ocr-card">
-            <h3>3. 选择句子保存</h3>
+            <h3>4. 选择句子保存</h3>
             <div id="sentenceList" class="sentence-list"></div>
           </div>
 

@@ -1,60 +1,83 @@
-# BookClips 摘书
+# BookClips 摘书 - 云端 OCR + 框选版
 
-BookClips 是一个实体书摘录 Web App 原型。
+这是一个实体书摘录 Web App 原型，支持上传/拍照后框选文字区域，并优先使用云端 OCR 识别。
 
-你可以用它：
+## 新增功能
 
-- 新增不同书籍
-- 上传或拍照实体书页面
-- OCR 识别中文和英文
-- 自动分句
-- 保存喜欢的句子
-- 按书籍、页码、标签、笔记管理摘录
-- 搜索书摘
-- 导出 JSON 备份
+- OCR 引擎升级为“云端 OCR 优先 + 本地 Tesseract 备用”
+- 通过 Vercel Serverless Function 调用 OCR.space，避免把 API key 暴露在前端
+- 支持简体中文、繁体中文、英文
+- 上传/拍照后可以框选文字区域，只识别框选部分
+- 云端 OCR 失败时，会自动尝试本地 OCR
 
-## 在线部署到 Vercel
-
-### 方法：GitHub + Vercel
-
-1. 在 GitHub 新建一个 repository，例如 `bookclips`
-2. 把本项目所有文件上传到 repository
-3. 打开 Vercel
-4. 点击 **Add New Project**
-5. 选择你的 GitHub repository
-6. Framework Preset 选择 **Other**
-7. Build Command 留空
-8. Output Directory 留空或填 `.`
-9. 点击 **Deploy**
-
-部署成功后，你会得到一个网址，例如：
+## 文件说明
 
 ```text
-https://bookclips.vercel.app
+index.html      页面结构
+styles.css      样式
+app.js          前端逻辑
+api/ocr.js      Vercel 云端 OCR 接口代理
+package.json    项目信息
+vercel.json     Vercel 配置
+README.md       使用说明
 ```
 
-用 iPhone Safari 打开后，可以点击分享按钮，然后选择 **添加到主屏幕**。
+## 部署到 Vercel
 
-## 本地运行
+### 1. 上传到 GitHub
 
-直接双击打开 `index.html` 即可。
+把本项目所有文件上传到你的 GitHub repository。
 
-或者在项目文件夹中运行：
+注意：请确保 `api/ocr.js` 也上传了。
+
+### 2. 在 Vercel 导入 GitHub repo
+
+- 打开 Vercel
+- Add New Project
+- 选择你的 GitHub repository
+- Framework Preset 选择 Other
+- Build Command 留空
+- Output Directory 留空或填 `.`
+- Deploy
+
+### 3. 添加 OCR API Key
+
+你需要申请 OCR.space API key：
+
+https://ocr.space/ocrapi
+
+然后在 Vercel 里设置：
+
+```text
+Project Settings
+→ Environment Variables
+→ Add New
+```
+
+添加：
+
+```text
+Name: OCR_SPACE_API_KEY
+Value: 你的 OCR.space API key
+```
+
+保存后，重新 Deploy 一次。
+
+## 本地开发
+
+如果你只是双击打开 `index.html`，云端 OCR 不会工作，因为 `/api/ocr` 需要 Vercel serverless 环境。
+
+本地调试云端 OCR 需要安装 Vercel CLI：
 
 ```bash
-python3 -m http.server 3000
+npm i -g vercel
+vercel dev
 ```
 
-然后浏览器打开：
-
-```text
-http://localhost:3000
-```
+并在本地配置环境变量。
 
 ## 注意事项
 
-- OCR 使用 Tesseract.js，需要联网加载 OCR 库。
-- 当前版本的数据保存在浏览器 localStorage 中。
-- 如果换设备、换浏览器或清除缓存，数据可能丢失。
-- 请定期使用“导出 JSON”备份。
-- 正式产品版本应加入用户登录、云同步、数据库、图片存储和更强 OCR 服务。
+- 当前 OCR.space 适合 MVP 测试，准确度会比纯浏览器 Tesseract 通常更稳定，但仍不等于最终商业级效果。
+- 如果要做正式产品，建议后续改为 Google Cloud Vision、Azure AI Vision、百度 OCR、腾讯云 OCR 或 iOS 原生 Live Text。
+- 当前书摘数据仍保存在浏览器 localStorage 中，请定期导出 JSON 备份。
