@@ -3,58 +3,70 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
 
-  const apiKey = process.env.OCR_SPACE_API_KEY;
+  const apiKey = process.env.GOOGLE_VISION_API_KEY;
 
   if (!apiKey) {
     return res.status(500).json({
       ok: false,
-      error: "Missing OCR_SPACE_API_KEY. Please add it in Vercel Project Settings > Environment Variables."
+      error: "Missing GOOGLE_VISION_API_KEY. Add it in Vercel Project Settings > Environment Variables."
     });
   }
 
   try {
-    const { base64Image, language = "chs" } = req.body || {};
+    const { base64Image, languageHint = "zh" } = req.body || {};
 
     if (!base64Image || typeof base64Image !== "string") {
       return res.status(400).json({ ok: false, error: "Missing base64Image" });
     }
 
-    const params = new URLSearchParams();
-    params.append("base64Image", base64Image);
-    params.append("language", language);
-    params.append("isOverlayRequired", "false");
-    params.append("OCREngine", "3");
-    params.append("scale", "true");
-    params.append("detectOrientation", "true");
-    params.append("isTable", "false");
+    const content = base64Image.replace(/^data:image\/\w+;base64,/, "");
 
-    const ocrResponse = await fetch("https://api.ocr.space/parse/image", {
-      method: "POST",
-      headers: {
-        "apikey": apiKey,
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: params.toString()
-    });
+    const requestBody = {
+      requests: [
+        {
+          image: { content },
+          features: [
+            { type: "DOCUMENT_TEXT_DETECTION" }
+          ],
+          imageContext: {
+            languageHints: languageHint === "en" ? ["en"] : ["zh", "zh-CN", "en"]
+          }
+        }
+      ]
+    };
 
-    const result = await ocrResponse.json();
+    const visionResponse = await fetch(
+      `https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(requestBody)
+      }
+    );
 
-    if (!ocrResponse.ok || result.IsErroredOnProcessing) {
-      const message = Array.isArray(result.ErrorMessage)
-        ? result.ErrorMessage.join("; ")
-        : result.ErrorMessage || result.ErrorDetails || "OCR.space processing failed";
+    const result = await visionResponse.json();
 
-      return res.status(502).json({
+    if (!visionResponse.ok) {
+      return res.status(visionResponse.status).json({
         ok: false,
-        error: message,
+        error: result?.error?.message || "Google Vision request failed",
         raw: result
       });
     }
 
-    const text = (result.ParsedResults || [])
-      .map(item => item.ParsedText || "")
-      .join("\n")
-      .trim();
+    const first = result.responses?.[0];
+
+    if (first?.error) {
+      return res.status(502).json({
+        ok: false,
+        error: first.error.message || "Google Vision processing failed",
+        raw: result
+      });
+    }
+
+    const text = first?.fullTextAnnotation?.text || first?.textAnnotations?.[0]?.description || "";
 
     return res.status(200).json({
       ok: true,
