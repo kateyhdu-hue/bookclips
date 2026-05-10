@@ -42,6 +42,17 @@ function renderBooks() {
     return;
   }
 
+  function normalizeBookText(text) {
+  return text
+    // 把中文句子中间的换行合并掉
+    .replace(/([^\n。！？!?；;：:])\n(?=[^\n])/g, "$1")
+    // 把多余空格压缩
+    .replace(/[ \t]+/g, " ")
+    // 保留真正段落：两个以上换行变成一个段落换行
+    .replace(/\n{2,}/g, "\n\n")
+    .trim();
+}
+  
   state.books.forEach(book => {
     const card = document.createElement("div");
     card.className = "book-card" + (book.id === activeBookId ? " active" : "");
@@ -203,10 +214,10 @@ async function runOcr(useCrop = true) {
     if (shouldClean && rawText.trim()) {
       $("ocrStatus").textContent = "Google Vision 识别完成，正在用 AI 自动修正文字……";
       const cleaned = await runAiClean(rawText, languageHint);
-      $("ocrText").value = cleaned.trim();
+      $("ocrText").value = normalizeBookText(cleaned).trim();
       $("ocrStatus").textContent = "OCR + AI 修正完成。你可以自动分句或手动微调。";
     } else {
-      $("ocrText").value = rawText.trim();
+      $("ocrText").value = normalizeBookText(rawText).trim();
       $("ocrStatus").textContent = "Google Vision OCR 完成。";
     }
   } catch (e) {
