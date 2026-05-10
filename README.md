@@ -1,83 +1,97 @@
-# BookClips 摘书 - 云端 OCR + 框选版
+# BookClips 摘书 - Google Vision OCR + AI 自动修正版
 
-这是一个实体书摘录 Web App 原型，支持上传/拍照后框选文字区域，并优先使用云端 OCR 识别。
+这是一个实体书摘录 Web App 原型，支持：
 
-## 新增功能
-
-- OCR 引擎升级为“云端 OCR 优先 + 本地 Tesseract 备用”
-- 通过 Vercel Serverless Function 调用 OCR.space，避免把 API key 暴露在前端
-- 支持简体中文、繁体中文、英文
-- 上传/拍照后可以框选文字区域，只识别框选部分
-- 云端 OCR 失败时，会自动尝试本地 OCR
+- 拍照/上传实体书页面
+- 框选要识别的文字区域
+- 使用 Google Vision `DOCUMENT_TEXT_DETECTION` 做密集文档 OCR
+- 自动调用 OpenAI 修正 OCR 错字、断行、标点和噪音
+- 自动分句并保存书摘
+- 按书籍、页码、标签、笔记管理摘录
+- 导出 JSON 备份
 
 ## 文件说明
 
 ```text
-index.html      页面结构
-styles.css      样式
-app.js          前端逻辑
-api/ocr.js      Vercel 云端 OCR 接口代理
-package.json    项目信息
-vercel.json     Vercel 配置
-README.md       使用说明
+index.html       页面结构
+styles.css       样式
+app.js           前端逻辑
+api/ocr.js       Vercel 后端：Google Vision OCR
+api/clean.js     Vercel 后端：OpenAI 自动修正 OCR
+package.json     项目信息
+vercel.json      Vercel 配置
+README.md        使用说明
 ```
 
-## 部署到 Vercel
+## 你需要准备的 API Key
 
-### 1. 上传到 GitHub
+### 1. Google Vision API Key
 
-把本项目所有文件上传到你的 GitHub repository。
+在 Google Cloud 开通 Cloud Vision API，然后创建 API key。
 
-注意：请确保 `api/ocr.js` 也上传了。
-
-### 2. 在 Vercel 导入 GitHub repo
-
-- 打开 Vercel
-- Add New Project
-- 选择你的 GitHub repository
-- Framework Preset 选择 Other
-- Build Command 留空
-- Output Directory 留空或填 `.`
-- Deploy
-
-### 3. 添加 OCR API Key
-
-你需要申请 OCR.space API key：
-
-https://ocr.space/ocrapi
-
-然后在 Vercel 里设置：
+需要放到 Vercel 环境变量：
 
 ```text
-Project Settings
+GOOGLE_VISION_API_KEY
+```
+
+### 2. OpenAI API Key
+
+在 OpenAI Platform 创建 API key。
+
+需要放到 Vercel 环境变量：
+
+```text
+OPENAI_API_KEY
+```
+
+可选：如果你想换模型，可以添加：
+
+```text
+OPENAI_MODEL
+```
+
+默认使用：
+
+```text
+gpt-4.1-mini
+```
+
+## 在 Vercel 设置 Environment Variables
+
+进入：
+
+```text
+Vercel
+→ 你的项目
+→ Settings
 → Environment Variables
-→ Add New
 ```
 
 添加：
 
 ```text
-Name: OCR_SPACE_API_KEY
-Value: 你的 OCR.space API key
+GOOGLE_VISION_API_KEY = 你的 Google Vision API key
+OPENAI_API_KEY = 你的 OpenAI API key
 ```
 
-保存后，重新 Deploy 一次。
+保存后重新部署：
 
-## 本地开发
-
-如果你只是双击打开 `index.html`，云端 OCR 不会工作，因为 `/api/ocr` 需要 Vercel serverless 环境。
-
-本地调试云端 OCR 需要安装 Vercel CLI：
-
-```bash
-npm i -g vercel
-vercel dev
+```text
+Deployments → Redeploy
 ```
 
-并在本地配置环境变量。
+## 部署到 Vercel
 
-## 注意事项
+1. 把本项目上传到 GitHub repo
+2. 在 Vercel 导入这个 GitHub repo
+3. 设置上面的环境变量
+4. Redeploy
 
-- 当前 OCR.space 适合 MVP 测试，准确度会比纯浏览器 Tesseract 通常更稳定，但仍不等于最终商业级效果。
-- 如果要做正式产品，建议后续改为 Google Cloud Vision、Azure AI Vision、百度 OCR、腾讯云 OCR 或 iOS 原生 Live Text。
-- 当前书摘数据仍保存在浏览器 localStorage 中，请定期导出 JSON 备份。
+## 重要说明
+
+- 这版不再使用 OCR.space。
+- Google Vision 的 `DOCUMENT_TEXT_DETECTION` 更适合密集文档/书页 OCR。
+- AI 修正会自动发生，不会再询问用户。
+- AI 修正可能会误改文字，所以前端仍然保留“查看原始 OCR 文本”，方便核对。
+- 当前书摘仍保存在浏览器 localStorage，请定期导出 JSON。

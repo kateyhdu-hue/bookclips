@@ -1,4 +1,4 @@
-const STORAGE_KEY = "bookclips.v3";
+const STORAGE_KEY = "bookclips.v4";
 
 let state = loadState();
 let activeBookId = state.books[0]?.id || null;
@@ -184,50 +184,41 @@ async function runOcr(useCrop = true) {
     sourceBlob = await makeFullImage();
   }
 
-  const engine = $("ocrEngine").value;
-  const language = $("ocrLanguage").value;
+  const languageHint = $("ocrLanguage").value;
+  const shouldClean = $("autoClean").checked;
 
   $("ocrCropBtn").disabled = true;
   $("ocrFullBtn").disabled = true;
+  $("rawOcrBox").classList.add("hidden");
+  $("rawOcrText").textContent = "";
 
   try {
-    let text = "";
+    $("ocrStatus").textContent = useCrop ? "正在使用 Google Vision 识别框选区域……" : "正在使用 Google Vision 识别整张图片……";
+    const base64Image = await blobToDataUrl(sourceBlob);
+    const rawText = await runGoogleVisionOcr(base64Image, languageHint);
 
-    if (engine === "cloud") {
-      $("ocrStatus").textContent = useCrop ? "正在用云端 OCR 识别框选区域……" : "正在用云端 OCR 识别整张图片……";
-      text = await runCloudOcr(sourceBlob, language);
+    $("rawOcrText").textContent = rawText;
+    $("rawOcrBox").classList.remove("hidden");
+
+    if (shouldClean && rawText.trim()) {
+      $("ocrStatus").textContent = "Google Vision 识别完成，正在用 AI 自动修正文字……";
+      const cleaned = await runAiClean(rawText, languageHint);
+      $("ocrText").value = cleaned.trim();
+      $("ocrStatus").textContent = "OCR + AI 修正完成。你可以自动分句或手动微调。";
     } else {
-      $("ocrStatus").textContent = useCrop ? "正在用本地 OCR 识别框选区域……" : "正在用本地 OCR 识别整张图片……";
-      text = await runLocalOcr(sourceBlob, language);
+      $("ocrText").value = rawText.trim();
+      $("ocrStatus").textContent = "Google Vision OCR 完成。";
     }
-
-    $("ocrText").value = text.trim();
-    $("ocrStatus").textContent = "识别完成。你可以编辑文字，或自动分句。";
   } catch (e) {
     console.error(e);
-
-    if (engine === "cloud") {
-      $("ocrStatus").textContent = "云端 OCR 失败，正在自动改用本地 OCR……";
-      try {
-        const text = await runLocalOcr(sourceBlob, language);
-        $("ocrText").value = text.trim();
-        $("ocrStatus").textContent = "本地备用 OCR 完成。";
-      } catch (localError) {
-        console.error(localError);
-        $("ocrStatus").textContent = "云端和本地 OCR 都失败。请检查 API key、图片大小，或换更清晰的照片。";
-      }
-    } else {
-      $("ocrStatus").textContent = "识别失败。可以换一张更清晰的照片，或重新框选更小区域。";
-    }
+    $("ocrStatus").textContent = `识别失败：${e.message || "请检查 Google/OpenAI API key、Vercel 环境变量和图片大小。"}`;
   } finally {
     $("ocrCropBtn").disabled = false;
     $("ocrFullBtn").disabled = false;
   }
 }
 
-async function runCloudOcr(blob, language) {
-  const base64Image = await blobToDataUrl(blob);
-
+async function runGoogleVisionOcr(base64Image, languageHint) {
   const response = await fetch("/api/ocr", {
     method: "POST",
     headers: {
@@ -235,36 +226,38 @@ async function runCloudOcr(blob, language) {
     },
     body: JSON.stringify({
       base64Image,
-      language
+      languageHint
     })
   });
 
   const data = await response.json();
 
   if (!response.ok || !data.ok) {
-    throw new Error(data.error || "Cloud OCR failed");
+    throw new Error(data.error || "Google Vision OCR failed");
   }
 
   return data.text || "";
 }
 
-async function runLocalOcr(blob, language) {
-  const langMap = {
-    chs: "chi_sim+eng",
-    cht: "chi_tra+eng",
-    eng: "eng"
-  };
-
-  const result = await Tesseract.recognize(blob, langMap[language] || "chi_sim+eng", {
-    logger: m => {
-      if (m.status) {
-        const pct = m.progress ? ` ${Math.round(m.progress * 100)}%` : "";
-        $("ocrStatus").textContent = `${m.status}${pct}`;
-      }
-    }
+async function runAiClean(rawText, languageHint) {
+  const response = await fetch("/api/clean", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      rawText,
+      languageHint
+    })
   });
 
-  return result.data.text || "";
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || "AI correction failed");
+  }
+
+  return data.text || rawText;
 }
 
 async function makeFullImage() {
@@ -278,7 +271,7 @@ async function makeFullImage() {
   preprocessCanvas(ctx, canvas.width, canvas.height);
 
   return new Promise(resolve => {
-    canvas.toBlob(blob => resolve(blob), "image/png");
+    canvas.toBlob(blob => resolve(blob), "image/jpeg", 0.92);
   });
 }
 
@@ -301,7 +294,7 @@ async function makeCroppedImage() {
   preprocessCanvas(ctx, sw, sh);
 
   return new Promise(resolve => {
-    canvas.toBlob(blob => resolve(blob), "image/png");
+    canvas.toBlob(blob => resolve(blob), "image/jpeg", 0.92);
   });
 }
 
@@ -309,7 +302,7 @@ function preprocessCanvas(ctx, width, height) {
   try {
     const imageData = ctx.getImageData(0, 0, width, height);
     const data = imageData.data;
-    const contrast = 1.35;
+    const contrast = 1.25;
     const intercept = 128 * (1 - contrast);
 
     for (let i = 0; i < data.length; i += 4) {

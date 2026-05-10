@@ -1,19 +1,19 @@
 {
   "name": "bookclips",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "A physical book clipping web app with crop selection and cloud OCR proxy.",
+  "description": "A physical book clipping web app with Google Vision OCR and AI correction.",
   "scripts": {
     "start": "python3 -m http.server 3000"
   },
   "keywords": [
     "book",
     "ocr",
+    "google-vision",
+    "openai",
     "reading",
     "notes",
-    "clips",
-    "crop",
-    "vercel"
+    "clips"
   ],
   "license": "MIT"
 }

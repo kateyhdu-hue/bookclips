@@ -135,6 +135,18 @@ button.danger { background: var(--danger); }
   font-size: 14px;
 }
 
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 25px;
+}
+
+.checkbox-label input {
+  width: auto;
+  margin: 0;
+}
+
 .hint {
   color: var(--muted);
   font-size: 14px;
@@ -176,6 +188,20 @@ button.danger { background: var(--danger); }
   background: rgba(122, 79, 43, 0.14);
   box-shadow: 0 0 0 9999px rgba(0,0,0,0.18);
   pointer-events: none;
+}
+
+.raw-box {
+  margin: 10px 0;
+  color: var(--muted);
+}
+
+.raw-box pre {
+  white-space: pre-wrap;
+  background: #f3eadc;
+  border-radius: 12px;
+  padding: 12px;
+  max-height: 220px;
+  overflow: auto;
 }
 
 .sentence-list { display: grid; gap: 8px; }
@@ -245,4 +271,5 @@ button.danger { background: var(--danger); }
   main { grid-template-columns: 1fr; }
   .workspace-header { flex-direction: column; }
   .settings-grid { grid-template-columns: 1fr; }
+  .checkbox-label { padding-top: 0; }
 }
