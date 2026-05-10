@@ -506,9 +506,19 @@ function normalizeBookText(text) {
   return text
     // 把中文句子中间的换行合并掉
     .replace(/([^\n。！？!?；;：:])\n(?=[^\n])/g, "$1")
+
+    // 仅在中文字符之间，把半角标点替换为全角
+    .replace(/(?<=[\u4e00-\u9fff]),(?=[\u4e00-\u9fff])/g, "，")
+    .replace(/(?<=[\u4e00-\u9fff]):(?=[\u4e00-\u9fff])/g, "：")
+    .replace(/(?<=[\u4e00-\u9fff]);(?=[\u4e00-\u9fff])/g, "；")
+    .replace(/(?<=[\u4e00-\u9fff])\?(?=[\u4e00-\u9fff])/g, "？")
+    .replace(/(?<=[\u4e00-\u9fff])!(?=[\u4e00-\u9fff])/g, "！")
+
     // 把多余空格压缩
     .replace(/[ \t]+/g, " ")
+
     // 保留真正段落：两个以上换行变成一个段落换行
     .replace(/\n{2,}/g, "\n\n")
+
     .trim();
 }
