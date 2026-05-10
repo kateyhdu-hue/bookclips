@@ -19,9 +19,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Missing rawText" });
     }
 
-    const systemPrompt = languageHint === "en"
-      ? "You clean OCR text from photographed physical books. Correct obvious OCR mistakes, remove page numbers/headers/footers/noise, restore punctuation and line breaks where helpful. Preserve the author's wording and meaning. Do not summarize, explain, add commentary, translate, or invent missing content. Return only the corrected text."
-      : "你负责清理从实体书照片 OCR 得到的文字。请修正明显 OCR 错字、乱码和断行错误，去掉页码、页眉、页脚、脚注编号和无关噪音，尽量恢复原书标点和自然段落。必须保留作者原意和原文风格，不要总结、解释、扩写、翻译或编造缺失内容。只输出修正后的正文。";
+const systemPrompt = languageHint === "en"
+  ? "You clean OCR text from photographed physical books. Correct obvious OCR mistakes, remove page numbers, headers, footers and noise. Do not preserve physical line breaks from the image. Merge broken lines within the same paragraph into continuous prose. Keep paragraph breaks only when there is a clear paragraph boundary. Restore punctuation where appropriate. Preserve the author's wording and meaning. Do not summarize, explain, translate, expand, or invent missing content. Return only the corrected text."
+  : "你负责清理从实体书照片 OCR 得到的文字。请修正明显 OCR 错字、乱码和断行错误，去掉页码、页眉、页脚、脚注编号和无关噪音。不要保留图片中的物理换行；同一自然段内被 OCR 拆开的行必须合并为连续文字。只有在明显是新的自然段时才换行。尽量恢复原书标点。必须保留作者原意和原文风格，不要总结、解释、扩写、翻译或编造缺失内容。只输出修正后的正文。";
 
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
