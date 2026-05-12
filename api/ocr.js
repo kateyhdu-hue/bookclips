@@ -39,9 +39,7 @@ export default async function handler(req, res) {
       `https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(apiKey)}`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody)
       }
     );
@@ -68,11 +66,7 @@ export default async function handler(req, res) {
 
     const text = first?.fullTextAnnotation?.text || first?.textAnnotations?.[0]?.description || "";
 
-    return res.status(200).json({
-      ok: true,
-      text,
-      raw: result
-    });
+    return res.status(200).json({ ok: true, text, raw: result });
   } catch (error) {
     console.error(error);
     return res.status(500).json({
