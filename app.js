@@ -1,6 +1,6 @@
 const STORAGE_KEY = "bookclips.v5.local";
-const SUPABASE_URL = "__SUPABASE_URL__";
-const SUPABASE_ANON_KEY = "__SUPABASE_ANON_KEY__";
+const SUPABASE_URL = "https://fcukokhobrtldmssenjy.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjdWtva2hvYnJ0bGRtc3Nlbmp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0NzUzNzksImV4cCI6MjA5NDA1MTM3OX0.JLG2L2gpKz6upoBd3UERP264KECYhMxsoVxf5afS4eE";
 
 let supabaseClient = null;
 let currentUser = null;
