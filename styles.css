@@ -28,13 +28,22 @@ header {
   margin-bottom: 20px;
 }
 
-.header-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:flex-end; }
-.user-email { color: var(--muted); font-size: 14px; }
-.auth-panel { margin-bottom: 18px; }
-.auth-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.user-email {
+  color: var(--muted);
+  font-size: 14px;
+}
 
 h1, h2, h3 { margin: 0 0 8px; }
 p { margin: 0; color: var(--muted); }
+code { background: #f1e5d2; padding: 2px 5px; border-radius: 6px; }
 
 main {
   display: grid;
@@ -48,6 +57,15 @@ main {
   border-radius: 18px;
   padding: 18px;
   box-shadow: 0 8px 28px rgba(74, 54, 34, 0.08);
+}
+
+.auth-panel, .setup-panel { margin-bottom: 18px; }
+
+.auth-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
 }
 
 .main-panel { min-height: 720px; }
@@ -273,7 +291,7 @@ button.danger { background: var(--danger); }
 @media (max-width: 850px) {
   .app { padding: 14px; }
   header { align-items: flex-start; flex-direction: column; }
-  .header-actions { justify-content:flex-start; }
+  .header-actions { justify-content: flex-start; }
   main { grid-template-columns: 1fr; }
   .workspace-header { flex-direction: column; }
   .settings-grid, .auth-grid { grid-template-columns: 1fr; }

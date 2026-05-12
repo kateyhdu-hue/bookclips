@@ -1,6 +1,11 @@
-const STORAGE_KEY = "bookclips.v5.local";
-const SUPABASE_URL = "https://fcukokhobrtldmssenjy.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjdWtva2hvYnJ0bGRtc3Nlbmp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0NzUzNzksImV4cCI6MjA5NDA1MTM3OX0.JLG2L2gpKz6upoBd3UERP264KECYhMxsoVxf5afS4eE";
+// ===============================
+// BookClips Full Release v1.1
+// Fill these two values from Supabase Project Settings → API
+// ===============================
+const SUPABASE_URL = "REPLACE_WITH_YOUR_SUPABASE_URL";
+const SUPABASE_ANON_KEY = "REPLACE_WITH_YOUR_SUPABASE_PUBLISHABLE_KEY";
+
+const STORAGE_KEY = "bookclips.v1.1.local";
 
 let supabaseClient = null;
 let currentUser = null;
@@ -12,42 +17,53 @@ let dragStart = null;
 
 const $ = (id) => document.getElementById(id);
 
-function uid() {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
-
-function loadLocalState() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { books: [] };
-  } catch {
-    return { books: [] };
-  }
-}
-
-function saveLocalState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+function isConfigured() {
+  return (
+    SUPABASE_URL &&
+    SUPABASE_ANON_KEY &&
+    !SUPABASE_URL.includes("REPLACE_WITH") &&
+    !SUPABASE_ANON_KEY.includes("REPLACE_WITH") &&
+    SUPABASE_URL.startsWith("https://")
+  );
 }
 
 function initSupabase() {
-  if (!window.supabase || SUPABASE_URL.includes("__") || SUPABASE_ANON_KEY.includes("__")) {
-    $("authStatus").textContent = "Supabase 尚未配置。请先在 app.js 填入 SUPABASE_URL 和 SUPABASE_ANON_KEY。";
-    return;
+  if (!window.supabase) {
+    showSetup("Supabase SDK 没有加载成功。请检查 index.html 底部是否先加载 https://unpkg.com/@supabase/supabase-js@2，再加载 app.js。");
+    return false;
   }
-  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  if (!isConfigured()) {
+    showSetup("Supabase URL 或 publishable key 尚未配置。请修改 app.js 顶部两个常量。");
+    return false;
+  }
+
+  try {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    return true;
+  } catch (error) {
+    showSetup("Supabase 初始化失败：" + error.message);
+    return false;
+  }
+}
+
+function showSetup(message) {
+  $("setupPanel").classList.remove("hidden");
+  $("setupStatus").textContent = message;
+  $("authPanel").classList.add("hidden");
+  $("appMain").classList.add("hidden");
 }
 
 async function initApp() {
-  initSupabase();
-  if (!supabaseClient) {
-    state = loadLocalState();
-    activeBookId = state.books[0]?.id || null;
-    showApp(false);
-    render();
-    return;
+  const ok = initSupabase();
+  if (!ok) return;
+
+  const { data, error } = await supabaseClient.auth.getSession();
+  if (error) {
+    $("authStatus").textContent = "读取登录状态失败：" + error.message;
   }
 
-  const { data } = await supabaseClient.auth.getSession();
-  currentUser = data.session?.user || null;
+  currentUser = data?.session?.user || null;
 
   supabaseClient.auth.onAuthStateChange(async (_event, session) => {
     currentUser = session?.user || null;
@@ -68,16 +84,27 @@ async function initApp() {
   } else {
     showApp(false);
   }
+
   render();
 }
 
 function showApp(isLoggedIn) {
+  $("setupPanel").classList.add("hidden");
   $("authPanel").classList.toggle("hidden", isLoggedIn);
   $("appMain").classList.toggle("hidden", !isLoggedIn);
   $("logoutBtn").classList.toggle("hidden", !isLoggedIn);
   $("syncBtn").classList.toggle("hidden", !isLoggedIn);
   $("exportBtn").classList.toggle("hidden", !isLoggedIn);
   $("userEmail").textContent = isLoggedIn ? currentUser.email : "";
+}
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label}超时：请检查 Supabase URL、publishable key、网络或 Auth 设置。`)), ms)
+    )
+  ]);
 }
 
 async function signUp() {
@@ -91,19 +118,18 @@ async function signUp() {
   $("authStatus").textContent = "正在注册……";
 
   try {
-    const result = await Promise.race([
+    const result = await withTimeout(
       supabaseClient.auth.signUp({ email, password }),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("注册请求超时：请检查 Supabase URL、publishable key、网络或 Supabase Auth 设置。")), 15000)
-      )
-    ]);
+      15000,
+      "注册请求"
+    );
 
     if (result.error) {
       $("authStatus").textContent = "注册失败：" + result.error.message;
       return;
     }
 
-    $("authStatus").textContent = "注册成功。请尝试登录。";
+    $("authStatus").textContent = "注册成功。若已关闭邮箱确认，可以直接登录；若未关闭，请先查收确认邮件。";
   } catch (error) {
     $("authStatus").textContent = "注册失败：" + error.message;
   }
@@ -120,12 +146,11 @@ async function signIn() {
   $("authStatus").textContent = "正在登录……";
 
   try {
-    const result = await Promise.race([
+    const result = await withTimeout(
       supabaseClient.auth.signInWithPassword({ email, password }),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("登录请求超时：请检查 Supabase URL、publishable key、网络或 Supabase Auth 设置。")), 15000)
-      )
-    ]);
+      15000,
+      "登录请求"
+    );
 
     if (result.error) {
       $("authStatus").textContent = "登录失败：" + result.error.message;
@@ -139,6 +164,7 @@ async function signIn() {
 }
 
 async function signOut() {
+  if (!supabaseClient) return;
   await supabaseClient.auth.signOut();
 }
 
@@ -149,13 +175,21 @@ async function loadCloudData() {
     .from("books")
     .select("*")
     .order("created_at", { ascending: false });
-  if (bookError) return alert("读取书籍失败：" + bookError.message);
+
+  if (bookError) {
+    alert("读取书籍失败：" + bookError.message);
+    return;
+  }
 
   const { data: clips, error: clipError } = await supabaseClient
     .from("clips")
     .select("*")
     .order("created_at", { ascending: false });
-  if (clipError) return alert("读取书摘失败：" + clipError.message);
+
+  if (clipError) {
+    alert("读取书摘失败：" + clipError.message);
+    return;
+  }
 
   state.books = (books || []).map(book => ({
     id: book.id,
@@ -177,7 +211,12 @@ async function loadCloudData() {
   if (!activeBookId || !state.books.find(b => b.id === activeBookId)) {
     activeBookId = state.books[0]?.id || null;
   }
+
   saveLocalState();
+}
+
+function saveLocalState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
 function activeBook() {
@@ -191,6 +230,8 @@ function render() {
 
 function renderBooks() {
   const list = $("bookList");
+  if (!list) return;
+
   list.innerHTML = "";
 
   if (!state.books.length) {
@@ -215,8 +256,10 @@ function renderBooks() {
 
 function renderWorkspace() {
   const book = activeBook();
+
   $("emptyState").classList.toggle("hidden", !!book);
   $("bookWorkspace").classList.toggle("hidden", !book);
+
   if (!book) return;
 
   $("activeBookTitle").textContent = book.title;
@@ -227,6 +270,7 @@ function renderWorkspace() {
 async function addBook() {
   const title = $("bookTitle").value.trim();
   const author = $("bookAuthor").value.trim();
+
   if (!title) return alert("请先输入书名");
   if (!currentUser) return alert("请先登录");
 
@@ -235,6 +279,7 @@ async function addBook() {
     .insert({ title, author, user_id: currentUser.id })
     .select()
     .single();
+
   if (error) return alert("新增书籍失败：" + error.message);
 
   const book = {
@@ -244,12 +289,98 @@ async function addBook() {
     createdAt: data.created_at,
     clips: []
   };
+
   state.books.unshift(book);
   activeBookId = book.id;
   $("bookTitle").value = "";
   $("bookAuthor").value = "";
   saveLocalState();
   render();
+}
+
+function handleImageUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  imageFile = file;
+  selection = null;
+  hideSelection();
+
+  const url = URL.createObjectURL(file);
+  $("previewImage").src = url;
+  $("cropCard").classList.remove("hidden");
+  $("ocrStatus").textContent = "图片已载入。请在图片上拖拽框选要识别的文字区域。";
+}
+
+function getPoint(event) {
+  const touch = event.touches?.[0] || event.changedTouches?.[0];
+  const clientX = touch ? touch.clientX : event.clientX;
+  const clientY = touch ? touch.clientY : event.clientY;
+  const rect = $("imageStage").getBoundingClientRect();
+
+  return {
+    x: clientX - rect.left + $("imageStage").scrollLeft,
+    y: clientY - rect.top + $("imageStage").scrollTop
+  };
+}
+
+function startSelection(event) {
+  if (!$("previewImage").src) return;
+  event.preventDefault();
+  dragStart = getPoint(event);
+  selection = { x: dragStart.x, y: dragStart.y, w: 0, h: 0 };
+  updateSelectionBox();
+}
+
+function moveSelection(event) {
+  if (!dragStart) return;
+  event.preventDefault();
+
+  const point = getPoint(event);
+
+  selection = {
+    x: Math.min(dragStart.x, point.x),
+    y: Math.min(dragStart.y, point.y),
+    w: Math.abs(point.x - dragStart.x),
+    h: Math.abs(point.y - dragStart.y)
+  };
+
+  updateSelectionBox();
+}
+
+function endSelection() {
+  if (!dragStart) return;
+  dragStart = null;
+
+  if (!selection || selection.w < 20 || selection.h < 20) {
+    selection = null;
+    hideSelection();
+    $("ocrStatus").textContent = "框选太小，请重新拖拽选择文字区域。";
+    return;
+  }
+
+  $("ocrStatus").textContent = "已框选区域。点击「识别框选区域」。";
+}
+
+function updateSelectionBox() {
+  if (!selection) return hideSelection();
+
+  const box = $("selectionBox");
+  box.classList.remove("hidden");
+  box.style.left = `${selection.x}px`;
+  box.style.top = `${selection.y}px`;
+  box.style.width = `${selection.w}px`;
+  box.style.height = `${selection.h}px`;
+}
+
+function hideSelection() {
+  $("selectionBox").classList.add("hidden");
+}
+
+function clearSelection() {
+  selection = null;
+  hideSelection();
+  $("ocrStatus").textContent = "已清除框选。可以重新拖拽选择文字区域。";
 }
 
 async function runOcr(useCrop = true) {
@@ -274,6 +405,7 @@ async function runOcr(useCrop = true) {
 
   try {
     $("ocrStatus").textContent = useCrop ? "正在使用 Google Vision 识别框选区域……" : "正在使用 Google Vision 识别整张图片……";
+
     const base64Image = await blobToDataUrl(sourceBlob);
     const rawText = await runGoogleVisionOcr(base64Image, languageHint);
 
@@ -287,7 +419,7 @@ async function runOcr(useCrop = true) {
       $("ocrStatus").textContent = "OCR + AI 修正完成。你可以自动分句或手动微调。";
     } else {
       $("ocrText").value = normalizeBookText(rawText).trim();
-      $("ocrStatus").textContent = "Google Vision OCR 完成。";
+      $("ocrStatus").textContent = "Google Vision OCR 完成。AI 修正当前为关闭状态。";
     }
   } catch (e) {
     console.error(e);
@@ -301,16 +433,11 @@ async function runOcr(useCrop = true) {
 async function runGoogleVisionOcr(base64Image, languageHint) {
   const response = await fetch("/api/ocr", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      base64Image,
-      languageHint
-    })
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ base64Image, languageHint })
   });
 
-  const data = await response.json();
+  const data = await safeJson(response);
 
   if (!response.ok || !data.ok) {
     throw new Error(data.error || "Google Vision OCR failed");
@@ -322,22 +449,26 @@ async function runGoogleVisionOcr(base64Image, languageHint) {
 async function runAiClean(rawText, languageHint) {
   const response = await fetch("/api/clean", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      rawText,
-      languageHint
-    })
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rawText, languageHint })
   });
 
-  const data = await response.json();
+  const data = await safeJson(response);
 
   if (!response.ok || !data.ok) {
     throw new Error(data.error || "AI correction failed");
   }
 
   return data.text || rawText;
+}
+
+async function safeJson(response) {
+  const text = await response.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { ok: false, error: `服务器返回的不是 JSON：${text.slice(0, 140)}` };
+  }
 }
 
 async function makeFullImage() {
@@ -453,13 +584,22 @@ async function saveClip(text) {
   const book = activeBook();
   if (!book) return;
   if (!currentUser) return alert("请先登录");
+
   const page = $("pageNumber").value.trim();
 
   const { data, error } = await supabaseClient
     .from("clips")
-    .insert({ user_id: currentUser.id, book_id: book.id, text, page, note: "", tags: "" })
+    .insert({
+      user_id: currentUser.id,
+      book_id: book.id,
+      text,
+      page,
+      note: "",
+      tags: ""
+    })
     .select()
     .single();
+
   if (error) return alert("保存书摘失败：" + error.message);
 
   book.clips.unshift({
@@ -470,6 +610,7 @@ async function saveClip(text) {
     tags: data.tags || "",
     createdAt: data.created_at
   });
+
   saveLocalState();
   render();
 }
@@ -480,6 +621,7 @@ function renderClips() {
   const list = $("clipList");
 
   let clips = book.clips;
+
   if (query) {
     clips = clips.filter(c =>
       c.text.toLowerCase().includes(query) ||
@@ -514,8 +656,14 @@ function renderClips() {
     div.querySelector(".saveNote").onclick = async () => {
       clip.tags = div.querySelector(".tags").value.trim();
       clip.note = div.querySelector(".note").value.trim();
-      const { error } = await supabaseClient.from("clips").update({ tags: clip.tags, note: clip.note }).eq("id", clip.id);
+
+      const { error } = await supabaseClient
+        .from("clips")
+        .update({ tags: clip.tags, note: clip.note })
+        .eq("id", clip.id);
+
       if (error) return alert("更新失败：" + error.message);
+
       saveLocalState();
       render();
     };
@@ -527,8 +675,13 @@ function renderClips() {
     };
 
     div.querySelector(".deleteClip").onclick = async () => {
-      const { error } = await supabaseClient.from("clips").delete().eq("id", clip.id);
+      const { error } = await supabaseClient
+        .from("clips")
+        .delete()
+        .eq("id", clip.id);
+
       if (error) return alert("删除失败：" + error.message);
+
       book.clips = book.clips.filter(c => c.id !== clip.id);
       saveLocalState();
       render();
@@ -542,8 +695,14 @@ async function deleteBook() {
   const book = activeBook();
   if (!book) return;
   if (!confirm(`确定删除《${book.title}》及其所有摘录吗？`)) return;
-  const { error } = await supabaseClient.from("books").delete().eq("id", book.id);
+
+  const { error } = await supabaseClient
+    .from("books")
+    .delete()
+    .eq("id", book.id);
+
   if (error) return alert("删除书籍失败：" + error.message);
+
   state.books = state.books.filter(b => b.id !== book.id);
   activeBookId = state.books[0]?.id || null;
   saveLocalState();
@@ -562,14 +721,16 @@ function exportJson() {
 
 function normalizeBookText(text) {
   return text
+    // 合并 OCR 物理换行：保留明显段落，尽量去掉同段落断行
     .replace(/([^\n。！？!?；;：:])\n(?=[^\n])/g, "$1")
+    // 仅在中文字符之间，把半角标点替换为全角，避免影响英文句子
     .replace(/(?<=[\u4e00-\u9fff]),(?=[\u4e00-\u9fff])/g, "，")
     .replace(/(?<=[\u4e00-\u9fff]):(?=[\u4e00-\u9fff])/g, "：")
     .replace(/(?<=[\u4e00-\u9fff]);(?=[\u4e00-\u9fff])/g, "；")
     .replace(/(?<=[\u4e00-\u9fff])\?(?=[\u4e00-\u9fff])/g, "？")
     .replace(/(?<=[\u4e00-\u9fff])!(?=[\u4e00-\u9fff])/g, "！")
     .replace(/[ \t]+/g, " ")
-    .replace(/\n{2,}/g, "\n\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
@@ -584,10 +745,15 @@ function escapeAttr(str) {
   return escapeHtml(str).replaceAll('"', "&quot;");
 }
 
+// Event bindings
 $("signUpBtn").onclick = signUp;
 $("signInBtn").onclick = signIn;
 $("logoutBtn").onclick = signOut;
-$("syncBtn").onclick = async () => { await loadCloudData(); render(); alert("已同步"); };
+$("syncBtn").onclick = async () => {
+  await loadCloudData();
+  render();
+  alert("已同步");
+};
 $("addBookBtn").onclick = addBook;
 $("imageInput").onchange = handleImageUpload;
 $("ocrCropBtn").onclick = () => runOcr(true);
@@ -603,7 +769,6 @@ const stage = $("imageStage");
 stage.addEventListener("mousedown", startSelection);
 stage.addEventListener("mousemove", moveSelection);
 window.addEventListener("mouseup", endSelection);
-
 stage.addEventListener("touchstart", startSelection, { passive: false });
 stage.addEventListener("touchmove", moveSelection, { passive: false });
 stage.addEventListener("touchend", endSelection);

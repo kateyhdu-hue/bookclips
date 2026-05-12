@@ -5,24 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BookClips 摘书</title>
   <link rel="stylesheet" href="./styles.css" />
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div class="app">
     <header>
       <div>
         <h1>BookClips 摘书</h1>
-        <p>拍照、框选、Google Vision OCR、AI 自动修正，并云同步你的书摘。</p>
+        <p>拍照、框选、Google Vision OCR、AI 修正、云同步你的实体书摘。</p>
       </div>
-      <div class="header-actions"><span id="userEmail" class="user-email"></span><button id="syncBtn" class="secondary hidden">同步</button><button id="exportBtn" class="hidden">导出 JSON</button><button id="logoutBtn" class="danger hidden">退出</button></div>
+      <div class="header-actions">
+        <span id="userEmail" class="user-email"></span>
+        <button id="syncBtn" class="secondary hidden">同步</button>
+        <button id="exportBtn" class="hidden">导出 JSON</button>
+        <button id="logoutBtn" class="danger hidden">退出</button>
+      </div>
     </header>
+
+    <section id="setupPanel" class="panel setup-panel hidden">
+      <h2>需要配置 Supabase</h2>
+      <p>请在 <code>app.js</code> 顶部填入 <code>SUPABASE_URL</code> 和 <code>SUPABASE_ANON_KEY</code>。Supabase SDK 已在页面底部正确加载。</p>
+      <div id="setupStatus" class="hint"></div>
+    </section>
 
     <section id="authPanel" class="panel auth-panel">
       <h2>登录 / 注册</h2>
       <p>用邮箱登录后，书籍和摘录会同步到云端，电脑和手机都能看到。</p>
       <div class="auth-grid">
-        <input id="authEmail" type="email" placeholder="邮箱" />
-        <input id="authPassword" type="password" placeholder="密码，至少 6 位" />
+        <input id="authEmail" type="email" placeholder="邮箱" autocomplete="email" />
+        <input id="authPassword" type="password" placeholder="密码，至少 6 位" autocomplete="current-password" />
       </div>
       <div class="actions">
         <button id="signUpBtn">注册</button>
@@ -72,8 +82,8 @@
               </label>
 
               <label class="checkbox-label">
-                <input id="autoClean" type="checkbox" checked />
-                OCR 后自动 AI 修正
+                <input id="autoClean" type="checkbox" />
+                OCR 后自动 AI 修正（默认关闭）
               </label>
             </div>
 
@@ -99,7 +109,7 @@
 
           <div class="ocr-card">
             <h3>3. 识别与修正结果</h3>
-            <textarea id="ocrText" placeholder="Google Vision OCR + AI 修正后的文字会显示在这里，也可以手动编辑。"></textarea>
+            <textarea id="ocrText" placeholder="Google Vision OCR 的文字会显示在这里。勾选 AI 修正后，会自动清理错字、断行和标点。"></textarea>
             <details id="rawOcrBox" class="raw-box hidden">
               <summary>查看原始 OCR 文本</summary>
               <pre id="rawOcrText"></pre>
@@ -125,6 +135,8 @@
     </main>
   </div>
 
+  <!-- 必须先加载 Supabase SDK，再加载 app.js -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="./app.js"></script>
 </body>
 </html>
