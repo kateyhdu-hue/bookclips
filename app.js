@@ -41,10 +41,47 @@ async function signUp(){
   try{const r=await withTimeout(supabaseClient.auth.signUp({email,password}),15000,"注册请求");$("authStatus").textContent=r.error?"注册失败："+r.error.message:"注册成功。若已关闭邮箱确认，可以直接登录；否则请先查收确认邮件。"}catch(e){$("authStatus").textContent="注册失败："+e.message}
 }
 async function signIn(){
-  const email=$("authEmail").value.trim(),password=$("authPassword").value.trim();
-  if(!email||!password)return alert("请输入邮箱和密码");
-  $("authStatus").textContent="正在登录……";
-  try{const r=await withTimeout(supabaseClient.auth.signInWithPassword({email,password}),15000,"登录请求");$("authStatus").textContent=r.error?"登录失败："+r.error.message:"登录成功。"}catch(e){$("authStatus").textContent="登录失败："+e.message}
+  const email = $("authEmail").value.trim();
+  const password = $("authPassword").value.trim();
+
+  if (!email || !password) return alert("请输入邮箱和密码");
+
+  $("authStatus").textContent = "正在登录……";
+
+  try {
+    const r = await withTimeout(
+      supabaseClient.auth.signInWithPassword({ email, password }),
+      15000,
+      "登录请求"
+    );
+
+    if (r.error) {
+      $("authStatus").textContent = "登录失败：" + r.error.message;
+      return;
+    }
+
+    currentUser = r.data?.user || r.data?.session?.user || null;
+
+    if (!currentUser) {
+      const sessionResult = await supabaseClient.auth.getSession();
+      currentUser = sessionResult.data?.session?.user || null;
+    }
+
+    if (!currentUser) {
+      $("authStatus").textContent = "登录成功，但没有读取到用户信息。请刷新页面再试。";
+      return;
+    }
+
+    $("authStatus").textContent = "登录成功。";
+
+    await loadCloudData();
+    showApp(true);
+    switchView("clips");
+    render();
+
+  } catch (error) {
+    $("authStatus").textContent = "登录失败：" + error.message;
+  }
 }
 async function signOut(){await supabaseClient.auth.signOut()}
 
