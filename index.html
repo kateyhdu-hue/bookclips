@@ -2,49 +2,50 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BookClips 摘书</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>BookClips 摘书 v2</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div class="app">
-    <header>
+  <div class="app-shell">
+    <header class="topbar">
       <div>
-        <h1>BookClips 摘书</h1>
-        <p>拍照、框选、Google Vision OCR、AI 修正、云同步你的实体书摘。</p>
+        <h1 id="screenTitle">书摘</h1>
+        <p id="screenSubtitle">你的实体书摘录库</p>
       </div>
-      <div class="header-actions">
-        <span id="userEmail" class="user-email"></span>
-        <button id="syncBtn" class="secondary hidden">同步</button>
-        <button id="exportBtn" class="hidden">导出 JSON</button>
-        <button id="logoutBtn" class="danger hidden">退出</button>
-      </div>
+      <button id="quickSyncBtn" class="ghost-btn hidden">同步</button>
     </header>
 
-    <section id="setupPanel" class="panel setup-panel hidden">
+    <section id="setupPanel" class="setup-panel hidden">
       <h2>需要配置 Supabase</h2>
-      <p>请在 <code>app.js</code> 顶部填入 <code>SUPABASE_URL</code> 和 <code>SUPABASE_ANON_KEY</code>。Supabase SDK 已在页面底部正确加载。</p>
-      <div id="setupStatus" class="hint"></div>
+      <p>请在 <code>app.js</code> 顶部填入 <code>SUPABASE_URL</code> 和 <code>SUPABASE_ANON_KEY</code>。</p>
+      <p id="setupStatus" class="status"></p>
     </section>
 
-    <section id="authPanel" class="panel auth-panel">
-      <h2>登录 / 注册</h2>
-      <p>用邮箱登录后，书籍和摘录会同步到云端，电脑和手机都能看到。</p>
-      <div class="auth-grid">
+    <section id="authPanel" class="auth-panel">
+      <div class="auth-card">
+        <h2>登录 / 注册</h2>
+        <p>登录后，电脑和手机会同步同一批书摘。</p>
         <input id="authEmail" type="email" placeholder="邮箱" autocomplete="email" />
         <input id="authPassword" type="password" placeholder="密码，至少 6 位" autocomplete="current-password" />
+        <div class="button-row">
+          <button id="signUpBtn">注册</button>
+          <button id="signInBtn" class="secondary-btn">登录</button>
+        </div>
+        <p id="authStatus" class="status"></p>
       </div>
-      <div class="actions">
-        <button id="signUpBtn">注册</button>
-        <button id="signInBtn" class="secondary">登录</button>
-      </div>
-      <div id="authStatus" class="hint"></div>
     </section>
 
-    <main id="appMain" class="hidden">
-      <section class="panel">
-        <h2>我的书</h2>
-        <div class="new-book">
+    <main id="mainApp" class="main-app hidden">
+      <section id="viewClips" class="view active-view">
+        <div class="search-wrap">
+          <input id="globalSearchInput" placeholder="搜索书摘、书名、标签、笔记" />
+        </div>
+        <div id="clipsFeed" class="clips-feed"></div>
+      </section>
+
+      <section id="viewBooks" class="view">
+        <div class="inline-form">
           <input id="bookTitle" placeholder="书名，例如：存在主义咖啡馆" />
           <input id="bookAuthor" placeholder="作者，可选" />
           <button id="addBookBtn">新增书籍</button>
@@ -52,90 +53,108 @@
         <div id="bookList" class="book-list"></div>
       </section>
 
-      <section class="panel main-panel">
-        <div id="emptyState" class="empty">
-          <h2>先新增或选择一本书</h2>
-          <p>然后上传书页照片，框选文字区域，再保存摘录。</p>
+      <section id="viewTags" class="view">
+        <div id="tagList" class="tag-cloud"></div>
+        <div id="tagResult" class="clips-feed"></div>
+      </section>
+
+      <section id="viewCapture" class="view">
+        <div class="capture-card">
+          <h2>新增摘录</h2>
+          <label class="field-label">选择书籍</label>
+          <select id="captureBookSelect"></select>
+
+          <label class="field-label">页码</label>
+          <input id="pageNumber" placeholder="例如 37" />
+
+          <label class="field-label">上传 / 拍照书页</label>
+          <input id="imageInput" type="file" accept="image/*" capture="environment" />
+
+          <div class="settings-grid">
+            <label>
+              语言
+              <select id="ocrLanguage">
+                <option value="zh" selected>中文 / 中英混排</option>
+                <option value="en">英文</option>
+              </select>
+            </label>
+
+            <label class="checkbox-label">
+              <input id="autoClean" type="checkbox" />
+              AI 修正 OCR（默认关闭）
+            </label>
+          </div>
         </div>
 
-        <div id="bookWorkspace" class="hidden">
-          <div class="workspace-header">
-            <div>
-              <h2 id="activeBookTitle"></h2>
-              <p id="activeBookMeta"></p>
-            </div>
-            <button id="deleteBookBtn" class="danger">删除此书</button>
+        <div id="cropCard" class="capture-card hidden">
+          <h3>框选要识别的文字</h3>
+          <div class="button-row">
+            <button id="ocrCropBtn">识别框选区域</button>
+            <button id="ocrFullBtn" class="secondary-btn">识别整张图</button>
+            <button id="clearSelectionBtn" class="ghost-btn">清除框选</button>
           </div>
-
-          <div class="ocr-card">
-            <h3>1. 上传 / 拍照书页</h3>
-            <input id="pageNumber" placeholder="页码，例如 37" />
-            <input id="imageInput" type="file" accept="image/*" capture="environment" />
-
-            <div class="settings-grid">
-              <label>
-                语言提示
-                <select id="ocrLanguage">
-                  <option value="zh" selected>中文/中英混排</option>
-                  <option value="en">英文</option>
-                </select>
-              </label>
-
-              <label class="checkbox-label">
-                <input id="autoClean" type="checkbox" />
-                OCR 后自动 AI 修正（默认关闭）
-              </label>
-            </div>
-
-            <div class="hint">
-              建议：单页拍摄、光线均匀、文字尽量占满画面。上传后用鼠标或手指框选要识别的文字区域。
-            </div>
+          <div id="imageStage" class="image-stage">
+            <img id="previewImage" alt="书页预览" />
+            <div id="selectionBox" class="selection-box hidden"></div>
           </div>
+          <canvas id="cropCanvas" class="hidden"></canvas>
+          <p id="ocrStatus" class="status"></p>
+        </div>
 
-          <div id="cropCard" class="ocr-card hidden">
-            <h3>2. 框选要识别的文字</h3>
-            <div class="toolbar">
-              <button id="ocrCropBtn">识别框选区域</button>
-              <button id="ocrFullBtn" class="secondary">识别整张图</button>
-              <button id="clearSelectionBtn" class="secondary">清除框选</button>
-            </div>
-            <div id="imageStage" class="image-stage">
-              <img id="previewImage" alt="书页预览" />
-              <div id="selectionBox" class="selection-box hidden"></div>
-            </div>
-            <canvas id="cropCanvas" class="hidden"></canvas>
-            <div id="ocrStatus"></div>
+        <div class="capture-card">
+          <h3>识别结果</h3>
+          <textarea id="ocrText" placeholder="OCR 结果会显示在这里，也可以手动粘贴或编辑。"></textarea>
+          <details id="rawOcrBox" class="raw-box hidden">
+            <summary>查看原始 OCR 文本</summary>
+            <pre id="rawOcrText"></pre>
+          </details>
+          <div class="button-row">
+            <button id="splitBtn">自动分句</button>
+            <button id="saveSelectedTextBtn" class="secondary-btn">保存选中文字</button>
           </div>
+        </div>
 
-          <div class="ocr-card">
-            <h3>3. 识别与修正结果</h3>
-            <textarea id="ocrText" placeholder="Google Vision OCR 的文字会显示在这里。勾选 AI 修正后，会自动清理错字、断行和标点。"></textarea>
-            <details id="rawOcrBox" class="raw-box hidden">
-              <summary>查看原始 OCR 文本</summary>
-              <pre id="rawOcrText"></pre>
-            </details>
-            <div class="actions">
-              <button id="splitBtn">自动分句</button>
-              <button id="saveSelectedTextBtn">保存选中文字</button>
-            </div>
-          </div>
+        <div class="capture-card">
+          <h3>选择句子保存</h3>
+          <div id="sentenceList" class="sentence-list"></div>
+        </div>
+      </section>
 
-          <div class="ocr-card">
-            <h3>4. 选择句子保存</h3>
-            <div id="sentenceList" class="sentence-list"></div>
+      <section id="viewProfile" class="view">
+        <div class="profile-card">
+          <h2>我的</h2>
+          <p id="userEmail" class="muted"></p>
+          <div class="stats-grid">
+            <div><strong id="statBooks">0</strong><span>本书</span></div>
+            <div><strong id="statClips">0</strong><span>条书摘</span></div>
+            <div><strong id="statTags">0</strong><span>个标签</span></div>
           </div>
+          <div class="profile-actions">
+            <button id="syncBtn">同步云端</button>
+            <button id="exportBtn" class="secondary-btn">导出 JSON</button>
+            <button id="logoutBtn" class="danger-btn">退出登录</button>
+          </div>
+        </div>
 
-          <div class="ocr-card">
-            <h3>已保存书摘</h3>
-            <input id="searchInput" placeholder="搜索本书书摘、标签或笔记" />
-            <div id="clipList" class="clip-list"></div>
-          </div>
+        <div class="profile-card">
+          <h3>使用提示</h3>
+          <p class="muted">AI 修正默认关闭。开启后会调用 OpenAI API，需要你已开通 API billing。</p>
+          <p class="muted">书摘、标签和笔记会存到 Supabase。图片本身暂不保存。</p>
         </div>
       </section>
     </main>
+
+    <button id="floatingAddBtn" class="floating-add hidden">＋</button>
+
+    <nav id="bottomNav" class="bottom-nav hidden">
+      <button data-view="clips" class="nav-item active-nav">书摘</button>
+      <button data-view="books" class="nav-item">书架</button>
+      <button data-view="capture" class="nav-item nav-capture">摘录</button>
+      <button data-view="tags" class="nav-item">标签</button>
+      <button data-view="profile" class="nav-item">我的</button>
+    </nav>
   </div>
 
-  <!-- 必须先加载 Supabase SDK，再加载 app.js -->
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="./app.js"></script>
 </body>

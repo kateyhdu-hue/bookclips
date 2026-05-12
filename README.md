@@ -1,72 +1,36 @@
-# BookClips Full Release v1.1
+# BookClips v2 App-style Release
 
-完整版功能：
+更接近手机书摘 App 的完整版本。
 
-- Supabase 邮箱注册 / 登录
-- 书籍和书摘云同步
-- 手机、电脑同账号同步
+## 功能
+
+- 底部 Tab：书摘 / 书架 / 摘录 / 标签 / 我的
+- 书摘卡片流
+- 书架管理
+- 标签云和标签筛选
+- 拍照 / 上传书页
+- 手指或鼠标框选 OCR 区域
 - Google Vision OCR
-- OpenAI AI 修正 OCR（默认关闭）
-- 拍照 / 上传图片
-- 手指或鼠标框选识别区域
+- OpenAI AI 修正（默认关闭）
 - OCR 物理换行合并
-- 中文字符之间半角标点自动转全角，避免影响英文句子
+- 中文字符之间半角标点转全角，不影响英文句子
 - 自动分句
 - 保存、搜索、复制、删除书摘
 - 标签和笔记
+- Supabase 邮箱登录
+- 云同步
 - JSON 导出
-- Vercel serverless API
-- 完整 Supabase RLS schema
 
----
+## 配置
 
-## 1. 上传 GitHub
+### Supabase
 
-把本项目所有文件上传到 GitHub repository。
+在 Supabase 创建项目后，进入 Project Settings → API，复制：
 
-必须包含：
+- Project URL
+- publishable key / anon public key
 
-```text
-index.html
-styles.css
-app.js
-api/ocr.js
-api/clean.js
-supabase_schema.sql
-package.json
-vercel.json
-README.md
-```
-
----
-
-## 2. Supabase 设置
-
-### 创建项目
-
-在 Supabase 新建 project。
-
-### 获取 URL 和 publishable key
-
-Project Settings → API
-
-复制：
-
-```text
-Project URL
-publishable key / anon public key
-```
-
-### 修改 app.js
-
-打开 `app.js` 顶部：
-
-```js
-const SUPABASE_URL = "REPLACE_WITH_YOUR_SUPABASE_URL";
-const SUPABASE_ANON_KEY = "REPLACE_WITH_YOUR_SUPABASE_PUBLISHABLE_KEY";
-```
-
-替换为：
+修改 `app.js` 顶部：
 
 ```js
 const SUPABASE_URL = "https://xxxx.supabase.co";
@@ -75,127 +39,39 @@ const SUPABASE_ANON_KEY = "sb_publishable_xxxx";
 
 不要使用 secret key 或 service role key。
 
----
+### Supabase 数据库
 
-## 3. 创建数据库表
+进入 SQL Editor，运行 `supabase_schema.sql` 全部内容。
 
-Supabase → SQL Editor
+成功提示 `Success. No rows returned` 是正常的。
 
-运行 `supabase_schema.sql` 全部内容。
+### Supabase Auth
 
-这会创建：
+MVP 阶段建议关闭邮箱验证：
 
-- books
-- clips
-- Row Level Security policies
+Authentication → Providers → Email → Confirm email: off
 
-每个用户只能看到自己的书和摘录。
+### Vercel 环境变量
 
----
+Vercel → Project → Settings → Environment Variables 添加：
 
-## 4. 关闭邮箱确认（MVP 推荐）
+- GOOGLE_VISION_API_KEY
+- OPENAI_API_KEY
 
-Supabase → Authentication → Providers → Email
+如果暂时没有 OpenAI billing，可以不勾选页面里的“AI 修正 OCR”。默认已经关闭。
 
-关闭：
+## 部署
 
-```text
-Confirm email / Enable email confirmations
-```
+上传全部文件到 GitHub，Vercel 会自动部署。
 
-否则注册后需要查收验证邮件。
+必须包含：
 
----
-
-## 5. Vercel 环境变量
-
-Vercel → Project → Settings → Environment Variables
-
-添加：
-
-```text
-GOOGLE_VISION_API_KEY
-OPENAI_API_KEY
-```
-
-如果暂时没有 OpenAI billing，可以不勾选 App 里的“AI 自动修正”。默认是关闭的。
-
-可选：
-
-```text
-OPENAI_MODEL = gpt-4.1-mini
-```
-
----
-
-## 6. 部署
-
-GitHub commit 后，Vercel 会自动部署。
-
-如果改了环境变量，手动 Redeploy 一次。
-
----
-
-## 7. 快速测试
-
-打开网站后：
-
-1. 注册或登录
-2. 新增一本书
-3. 上传图片
-4. 框选文字区域
-5. 点击识别框选区域
-6. 自动分句
-7. 保存句子
-8. 用手机同账号登录，应能看到同一批书摘
-
----
-
-## 8. 常见问题
-
-### 显示 Supabase 未配置
-
-检查 `app.js` 顶部是否替换了 Supabase URL 和 key。
-
-### 注册一直卡住
-
-此版本有 15 秒 timeout，会显示具体错误。也请检查：
-
-- Supabase URL 是否正确
-- publishable key 是否正确
-- Email confirmation 是否关闭
-- Supabase 项目是否暂停
-- 浏览器网络是否能访问 Supabase
-
-### OCR 失败
-
-检查 Vercel 环境变量：
-
-```text
-GOOGLE_VISION_API_KEY
-```
-
-以及 Google Cloud 是否启用 Cloud Vision API。
-
-### AI 修正失败
-
-检查：
-
-```text
-OPENAI_API_KEY
-```
-
-以及 OpenAI API billing。ChatGPT Plus 不等于 OpenAI API 额度。
-
----
-
-## 9. 安全说明
-
-Supabase publishable / anon key 可以放前端。安全依赖 RLS policy。
-
-不要把以下 key 放入前端：
-
-```text
-service_role
-secret key
-```
+- index.html
+- styles.css
+- app.js
+- api/ocr.js
+- api/clean.js
+- supabase_schema.sql
+- README.md
+- package.json
+- vercel.json
