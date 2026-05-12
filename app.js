@@ -2,8 +2,8 @@
 // BookClips Full Release v1.1
 // Fill these two values from Supabase Project Settings → API
 // ===============================
-const SUPABASE_URL = "REPLACE_WITH_YOUR_SUPABASE_URL";
-const SUPABASE_ANON_KEY = "REPLACE_WITH_YOUR_SUPABASE_PUBLISHABLE_KEY";
+const SUPABASE_URL = "https://fcukokhobrtldmssenjy.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjdWtva2hvYnJ0bGRtc3Nlbmp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0NzUzNzksImV4cCI6MjA5NDA1MTM3OX0.JLG2L2gpKz6upoBd3UERP264KECYhMxsoVxf5afS4eE";
 
 const STORAGE_KEY = "bookclips.v1.1.local";
 
