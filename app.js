@@ -81,21 +81,61 @@ function showApp(isLoggedIn) {
 }
 
 async function signUp() {
+  if (!supabaseClient) return alert("Supabase 未配置");
+
   const email = $("authEmail").value.trim();
   const password = $("authPassword").value.trim();
+
   if (!email || !password) return alert("请输入邮箱和密码");
+
   $("authStatus").textContent = "正在注册……";
-  const { error } = await supabaseClient.auth.signUp({ email, password });
-  $("authStatus").textContent = error ? error.message : "注册成功。若开启邮箱确认，请先查收确认邮件；否则可以直接登录。";
+
+  try {
+    const result = await Promise.race([
+      supabaseClient.auth.signUp({ email, password }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("注册请求超时：请检查 Supabase URL、publishable key、网络或 Supabase Auth 设置。")), 15000)
+      )
+    ]);
+
+    if (result.error) {
+      $("authStatus").textContent = "注册失败：" + result.error.message;
+      return;
+    }
+
+    $("authStatus").textContent = "注册成功。请尝试登录。";
+  } catch (error) {
+    $("authStatus").textContent = "注册失败：" + error.message;
+  }
 }
 
 async function signIn() {
+  if (!supabaseClient) return alert("Supabase 未配置");
+
   const email = $("authEmail").value.trim();
   const password = $("authPassword").value.trim();
+
   if (!email || !password) return alert("请输入邮箱和密码");
+
   $("authStatus").textContent = "正在登录……";
-  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-  $("authStatus").textContent = error ? error.message : "";
+
+  try {
+    const result = await Promise.race([
+      supabaseClient.auth.signInWithPassword({ email, password }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("登录请求超时：请检查 Supabase URL、publishable key、网络或 Supabase Auth 设置。")), 15000)
+      )
+    ]);
+
+    if (result.error) {
+      $("authStatus").textContent = "登录失败：" + result.error.message;
+      return;
+    }
+
+    $("authStatus").textContent = "登录成功。";
+  } catch (error) {
+    $("authStatus").textContent = "登录失败：" + error.message;
+  }
 }
 
 async function signOut() {
