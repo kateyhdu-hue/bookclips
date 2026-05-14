@@ -1,4 +1,3 @@
--- BookClips v2 Supabase schema
 create extension if not exists "pgcrypto";
 
 create table if not exists public.books (

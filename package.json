@@ -1,8 +1,8 @@
 {
-  "name": "bookclips-v2-app-release",
-  "version": "2.0.0",
+  "name": "bookclips-v2-1-app-release",
+  "version": "2.1.0",
   "private": true,
-  "description": "BookClips v2 app-style release with Supabase sync, Google Vision OCR and AI correction.",
+  "description": "BookClips v2.1 original reading clips app-style release.",
   "scripts": {
     "start": "python3 -m http.server 3000"
   },

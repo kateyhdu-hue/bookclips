@@ -1,6 +1,6 @@
-# BookClips v2 App-style Release
+# BookClips v2.1 App-style Release
 
-更接近手机书摘 App 的完整版本。
+这是原创手机书摘 App 风格版本，不是任何现有 App 的 1:1 复制。
 
 ## 功能
 
@@ -20,6 +20,7 @@
 - Supabase 邮箱登录
 - 云同步
 - JSON 导出
+- 修复登录成功后不自动跳转
 
 ## 配置
 
@@ -37,41 +38,15 @@ const SUPABASE_URL = "https://xxxx.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_xxxx";
 ```
 
-不要使用 secret key 或 service role key。
-
 ### Supabase 数据库
 
 进入 SQL Editor，运行 `supabase_schema.sql` 全部内容。
 
-成功提示 `Success. No rows returned` 是正常的。
-
-### Supabase Auth
-
-MVP 阶段建议关闭邮箱验证：
-
-Authentication → Providers → Email → Confirm email: off
-
 ### Vercel 环境变量
 
-Vercel → Project → Settings → Environment Variables 添加：
+添加：
 
 - GOOGLE_VISION_API_KEY
 - OPENAI_API_KEY
 
-如果暂时没有 OpenAI billing，可以不勾选页面里的“AI 修正 OCR”。默认已经关闭。
-
-## 部署
-
-上传全部文件到 GitHub，Vercel 会自动部署。
-
-必须包含：
-
-- index.html
-- styles.css
-- app.js
-- api/ocr.js
-- api/clean.js
-- supabase_schema.sql
-- README.md
-- package.json
-- vercel.json
+如果没有 OpenAI billing，可以不勾选页面里的“AI 修正 OCR”。默认已经关闭。

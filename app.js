@@ -1,177 +1,34 @@
-// BookClips v2 App-style Release
-const SUPABASE_URL = "https://fcukokhobrtldmssenjy.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjdWtva2hvYnJ0bGRtc3Nlbmp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0NzUzNzksImV4cCI6MjA5NDA1MTM3OX0.JLG2L2gpKz6upoBd3UERP264KECYhMxsoVxf5afS4eE";
-
-
-const STORAGE_KEY = "bookclips.v2.local";
-let supabaseClient=null,currentUser=null,state={books:[]},activeView="clips",activeTag=null;
-let imageFile=null,selection=null,dragStart=null;
-const $=(id)=>document.getElementById(id);
+const SUPABASE_URL="REPLACE_WITH_YOUR_SUPABASE_URL";
+const SUPABASE_ANON_KEY="REPLACE_WITH_YOUR_SUPABASE_PUBLISHABLE_KEY";
+const STORAGE_KEY="bookclips.v2.1.local";
+let supabaseClient=null,currentUser=null,state={books:[]},activeTag=null,imageFile=null,selection=null,dragStart=null;
+const $=id=>document.getElementById(id);
 const viewMeta={clips:["书摘","你的实体书摘录流"],books:["书架","按书管理摘录"],capture:["摘录","拍照、框选、识别、保存"],tags:["标签","按主题查看书摘"],profile:["我的","账号、同步和导出"]};
-
 function isConfigured(){return SUPABASE_URL&&!SUPABASE_URL.includes("REPLACE_WITH")&&SUPABASE_ANON_KEY&&!SUPABASE_ANON_KEY.includes("REPLACE_WITH")&&SUPABASE_URL.startsWith("https://")}
-function initSupabase(){
-  if(!window.supabase){showSetup("Supabase SDK 没有加载成功。请检查 index.html 是否在 app.js 之前加载 Supabase SDK。");return false}
-  if(!isConfigured()){showSetup("Supabase URL 或 publishable key 尚未配置。请修改 app.js 顶部两个常量。");return false}
-  try{supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);return true}catch(e){showSetup("Supabase 初始化失败："+e.message);return false}
-}
+function initSupabase(){if(!window.supabase){showSetup("Supabase SDK 没有加载成功。");return false}if(!isConfigured()){showSetup("Supabase URL 或 publishable key 尚未配置。请修改 app.js 顶部两个常量。");return false}try{supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);return true}catch(e){showSetup("Supabase 初始化失败："+e.message);return false}}
 function showSetup(msg){$("setupPanel").classList.remove("hidden");$("setupStatus").textContent=msg;$("authPanel").classList.add("hidden");$("mainApp").classList.add("hidden");$("bottomNav").classList.add("hidden");$("floatingAddBtn").classList.add("hidden")}
-
-async function initApp(){
-  if(!initSupabase())return;
-  bindEvents();
-  const {data,error}=await supabaseClient.auth.getSession();
-  if(error)$("authStatus").textContent="读取登录状态失败："+error.message;
-  currentUser=data?.session?.user||null;
-  supabaseClient.auth.onAuthStateChange(async(_event,session)=>{
-    currentUser=session?.user||null;
-    if(currentUser){await loadCloudData();showApp(true)}else{state={books:[]};showApp(false)}
-    render();
-  });
-  if(currentUser){await loadCloudData();showApp(true)}else showApp(false);
-  switchView("clips");render();
-}
+async function initApp(){if(!initSupabase())return;bindEvents();const {data,error}=await supabaseClient.auth.getSession();if(error)$("authStatus").textContent="读取登录状态失败："+error.message;currentUser=data?.session?.user||null;supabaseClient.auth.onAuthStateChange(async(_e,session)=>{currentUser=session?.user||null;if(currentUser){await loadCloudData();showApp(true)}else{state={books:[]};showApp(false)}render()});if(currentUser){await loadCloudData();showApp(true)}else showApp(false);switchView("clips");render()}
 function showApp(ok){$("setupPanel").classList.add("hidden");$("authPanel").classList.toggle("hidden",ok);$("mainApp").classList.toggle("hidden",!ok);$("bottomNav").classList.toggle("hidden",!ok);$("floatingAddBtn").classList.toggle("hidden",!ok);$("quickSyncBtn").classList.toggle("hidden",!ok);$("userEmail").textContent=ok?currentUser.email:""}
-function withTimeout(promise,ms,label){return Promise.race([promise,new Promise((_,reject)=>setTimeout(()=>reject(new Error(`${label}超时：请检查 Supabase URL、publishable key、网络或 Auth 设置。`)),ms))])}
-
-async function signUp(){
-  const email=$("authEmail").value.trim(),password=$("authPassword").value.trim();
-  if(!email||!password)return alert("请输入邮箱和密码");
-  $("authStatus").textContent="正在注册……";
-  try{const r=await withTimeout(supabaseClient.auth.signUp({email,password}),15000,"注册请求");$("authStatus").textContent=r.error?"注册失败："+r.error.message:"注册成功。若已关闭邮箱确认，可以直接登录；否则请先查收确认邮件。"}catch(e){$("authStatus").textContent="注册失败："+e.message}
-}
-async function signIn(){
-  const email = $("authEmail").value.trim();
-  const password = $("authPassword").value.trim();
-
-  if (!email || !password) return alert("请输入邮箱和密码");
-
-  $("authStatus").textContent = "正在登录……";
-
-  try {
-    const r = await withTimeout(
-      supabaseClient.auth.signInWithPassword({ email, password }),
-      15000,
-      "登录请求"
-    );
-
-    if (r.error) {
-      $("authStatus").textContent = "登录失败：" + r.error.message;
-      return;
-    }
-
-    currentUser = r.data?.user || r.data?.session?.user || null;
-
-    if (!currentUser) {
-      const sessionResult = await supabaseClient.auth.getSession();
-      currentUser = sessionResult.data?.session?.user || null;
-    }
-
-    if (!currentUser) {
-      $("authStatus").textContent = "登录成功，但没有读取到用户信息。请刷新页面再试。";
-      return;
-    }
-
-    $("authStatus").textContent = "登录成功。";
-
-    await loadCloudData();
-    showApp(true);
-    switchView("clips");
-    render();
-
-  } catch (error) {
-    $("authStatus").textContent = "登录失败：" + error.message;
-  }
-}
+function withTimeout(p,ms,label){return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error(`${label}超时：请检查 Supabase URL、publishable key、网络或 Auth 设置。`)),ms))])}
+async function signUp(){const email=$("authEmail").value.trim(),password=$("authPassword").value.trim();if(!email||!password)return alert("请输入邮箱和密码");$("authStatus").textContent="正在注册……";try{const r=await withTimeout(supabaseClient.auth.signUp({email,password}),15000,"注册请求");$("authStatus").textContent=r.error?"注册失败："+r.error.message:"注册成功。若已关闭邮箱确认，可以直接登录；否则请先查收确认邮件。"}catch(e){$("authStatus").textContent="注册失败："+e.message}}
+async function signIn(){const email=$("authEmail").value.trim(),password=$("authPassword").value.trim();if(!email||!password)return alert("请输入邮箱和密码");$("authStatus").textContent="正在登录……";try{const r=await withTimeout(supabaseClient.auth.signInWithPassword({email,password}),15000,"登录请求");if(r.error){$("authStatus").textContent="登录失败："+r.error.message;return}currentUser=r.data?.user||r.data?.session?.user||null;if(!currentUser){const s=await supabaseClient.auth.getSession();currentUser=s.data?.session?.user||null}if(!currentUser){$("authStatus").textContent="登录成功，但没有读取到用户信息。请刷新页面再试。";return}$("authStatus").textContent="登录成功。";await loadCloudData();showApp(true);switchView("clips");render()}catch(e){$("authStatus").textContent="登录失败："+e.message}}
 async function signOut(){await supabaseClient.auth.signOut()}
-
-async function loadCloudData(){
-  if(!currentUser)return;
-  const {data:books,error:be}=await supabaseClient.from("books").select("*").order("created_at",{ascending:false});
-  if(be)return alert("读取书籍失败："+be.message);
-  const {data:clips,error:ce}=await supabaseClient.from("clips").select("*").order("created_at",{ascending:false});
-  if(ce)return alert("读取书摘失败："+ce.message);
-  state.books=(books||[]).map(book=>({id:book.id,title:book.title,author:book.author||"",createdAt:book.created_at,clips:(clips||[]).filter(c=>c.book_id===book.id).map(c=>({id:c.id,text:c.text,page:c.page||"",note:c.note||"",tags:c.tags||"",createdAt:c.created_at}))}));
-  saveLocalState();
-}
+async function loadCloudData(){if(!currentUser)return;const {data:books,error:be}=await supabaseClient.from("books").select("*").order("created_at",{ascending:false});if(be)return alert("读取书籍失败："+be.message);const {data:clips,error:ce}=await supabaseClient.from("clips").select("*").order("created_at",{ascending:false});if(ce)return alert("读取书摘失败："+ce.message);state.books=(books||[]).map(book=>({id:book.id,title:book.title,author:book.author||"",createdAt:book.created_at,clips:(clips||[]).filter(c=>c.book_id===book.id).map(c=>({id:c.id,text:c.text,page:c.page||"",note:c.note||"",tags:c.tags||"",createdAt:c.created_at}))}));saveLocalState()}
 function saveLocalState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}
 function allClips(){return state.books.flatMap(book=>book.clips.map(clip=>({...clip,bookId:book.id,bookTitle:book.title,bookAuthor:book.author}))).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt))}
 function getBook(id){return state.books.find(b=>b.id===id)}
-function switchView(view){
-  activeView=view;if(view!=="tags")activeTag=null;
-  const ids={clips:"viewClips",books:"viewBooks",capture:"viewCapture",tags:"viewTags",profile:"viewProfile"};
-  Object.entries(ids).forEach(([k,id])=>$(id).classList.toggle("active-view",k===view));
-  document.querySelectorAll(".nav-item").forEach(btn=>btn.classList.toggle("active-nav",btn.dataset.view===view));
-  const [t,s]=viewMeta[view]||viewMeta.clips;$("screenTitle").textContent=t;$("screenSubtitle").textContent=s;render();
-}
+function switchView(view){const ids={clips:"viewClips",books:"viewBooks",capture:"viewCapture",tags:"viewTags",profile:"viewProfile"};Object.entries(ids).forEach(([k,id])=>$(id).classList.toggle("active-view",k===view));document.querySelectorAll(".nav-item").forEach(btn=>btn.classList.toggle("active-nav",btn.dataset.view===view));const [t,s]=viewMeta[view]||viewMeta.clips;$("screenTitle").textContent=t;$("screenSubtitle").textContent=s;if(view!=="tags")activeTag=null;render()}
 function render(){renderBookSelect();renderBooks();renderClipsFeed();renderTags();renderStats()}
-function renderBookSelect(){
-  const sel=$("captureBookSelect");sel.innerHTML="";
-  if(!state.books.length){const o=document.createElement("option");o.value="";o.textContent="请先在书架新增一本书";sel.appendChild(o);return}
-  state.books.forEach(book=>{const o=document.createElement("option");o.value=book.id;o.textContent=`《${book.title}》${book.author?" · "+book.author:""}`;sel.appendChild(o)})
-}
-function renderBooks(){
-  const list=$("bookList");list.innerHTML="";
-  if(!state.books.length){list.innerHTML=`<div class="book-card"><p>还没有书。先新增一本，然后开始摘录。</p></div>`;return}
-  state.books.forEach(book=>{
-    const card=document.createElement("div");card.className="book-card";
-    card.innerHTML=`<div class="book-card-title">《${escapeHtml(book.title)}》</div><div class="clip-meta">${escapeHtml(book.author||"未知作者")} · ${book.clips.length} 条摘录</div><div class="clip-actions"><button class="secondary-btn view-book">查看摘录</button><button class="danger-btn delete-book">删除</button></div>`;
-    card.querySelector(".view-book").onclick=()=>{$("globalSearchInput").value=book.title;switchView("clips")};
-    card.querySelector(".delete-book").onclick=()=>deleteBook(book.id);
-    list.appendChild(card);
-  })
-}
-function renderClipsFeed(){
-  const container=$("clipsFeed");const q=$("globalSearchInput").value.trim().toLowerCase();
-  let clips=allClips();
-  if(q)clips=clips.filter(c=>c.text.toLowerCase().includes(q)||c.bookTitle.toLowerCase().includes(q)||(c.note||"").toLowerCase().includes(q)||(c.tags||"").toLowerCase().includes(q)||String(c.page||"").toLowerCase().includes(q));
-  container.innerHTML="";
-  if(!clips.length){container.innerHTML=`<div class="clip-card"><p class="muted">还没有书摘。点击底部“摘录”开始。</p></div>`;return}
-  clips.forEach(c=>container.appendChild(createClipCard(c)))
-}
-function createClipCard(clip){
-  const card=document.createElement("div");card.className="clip-card";
-  const tags=parseTags(clip.tags);const tagHtml=tags.map(t=>`<span class="tag-pill" data-tag="${escapeAttr(t)}">#${escapeHtml(t)}</span>`).join("");
-  card.innerHTML=`<div class="clip-text">${escapeHtml(clip.text)}</div><div class="clip-meta">《${escapeHtml(clip.bookTitle)}》${clip.page?" · p."+escapeHtml(clip.page):""} · ${new Date(clip.createdAt).toLocaleDateString()}</div><div class="clip-tags">${tagHtml}</div><div class="clip-edit"><input class="clip-tags-input" placeholder="标签，用 / 或 , 分隔" value="${escapeAttr(clip.tags||"")}" /><textarea class="clip-note-input" placeholder="写一点你的想法……">${escapeHtml(clip.note||"")}</textarea><div class="clip-actions"><button class="save-clip-edit">保存</button><button class="secondary-btn copy-clip">复制</button><button class="danger-btn delete-clip">删除</button></div></div>`;
-  card.querySelectorAll(".tag-pill").forEach(el=>{el.onclick=()=>{activeTag=el.dataset.tag;switchView("tags")}});
-  card.querySelector(".save-clip-edit").onclick=async()=>{
-    const book=getBook(clip.bookId),local=book?.clips.find(c=>c.id===clip.id);if(!local)return;
-    local.tags=card.querySelector(".clip-tags-input").value.trim();local.note=card.querySelector(".clip-note-input").value.trim();
-    const {error}=await supabaseClient.from("clips").update({tags:local.tags,note:local.note}).eq("id",clip.id);
-    if(error)return alert("更新失败："+error.message);saveLocalState();render();
-  };
-  card.querySelector(".copy-clip").onclick=async()=>{await navigator.clipboard.writeText(`《${clip.bookTitle}》${clip.page?" p."+clip.page:""}\n${clip.text}`);alert("已复制")};
-  card.querySelector(".delete-clip").onclick=()=>deleteClip(clip.bookId,clip.id);
-  return card;
-}
+function renderBookSelect(){const sel=$("captureBookSelect");sel.innerHTML="";if(!state.books.length){const o=document.createElement("option");o.value="";o.textContent="请先在书架新增一本书";sel.appendChild(o);return}state.books.forEach(book=>{const o=document.createElement("option");o.value=book.id;o.textContent=`《${book.title}》${book.author?" · "+book.author:""}`;sel.appendChild(o)})}
+function renderBooks(){const list=$("bookList");list.innerHTML="";if(!state.books.length){list.innerHTML=`<div class="book-card"><p>还没有书。先新增一本，然后开始摘录。</p></div>`;return}state.books.forEach(book=>{const card=document.createElement("div");card.className="book-card";card.innerHTML=`<div class="book-card-title">《${escapeHtml(book.title)}》</div><div class="clip-meta">${escapeHtml(book.author||"未知作者")} · ${book.clips.length} 条摘录</div><div class="clip-actions"><button class="secondary-btn view-book">查看摘录</button><button class="danger-btn delete-book">删除</button></div>`;card.querySelector(".view-book").onclick=()=>{$("globalSearchInput").value=book.title;switchView("clips")};card.querySelector(".delete-book").onclick=()=>deleteBook(book.id);list.appendChild(card)})}
+function renderClipsFeed(){const container=$("clipsFeed");const q=$("globalSearchInput").value.trim().toLowerCase();let clips=allClips();if(q)clips=clips.filter(c=>c.text.toLowerCase().includes(q)||c.bookTitle.toLowerCase().includes(q)||(c.note||"").toLowerCase().includes(q)||(c.tags||"").toLowerCase().includes(q)||String(c.page||"").toLowerCase().includes(q));container.innerHTML="";if(!clips.length){container.innerHTML=`<div class="clip-card"><p class="muted">还没有书摘。点击底部“摘录”开始。</p></div>`;return}clips.forEach(c=>container.appendChild(createClipCard(c)))}
+function createClipCard(clip){const card=document.createElement("div");card.className="clip-card";const tags=parseTags(clip.tags);const tagHtml=tags.map(t=>`<span class="tag-pill" data-tag="${escapeAttr(t)}">#${escapeHtml(t)}</span>`).join("");card.innerHTML=`<div class="clip-text">${escapeHtml(clip.text)}</div><div class="clip-meta">《${escapeHtml(clip.bookTitle)}》${clip.page?" · p."+escapeHtml(clip.page):""} · ${new Date(clip.createdAt).toLocaleDateString()}</div><div class="clip-tags">${tagHtml}</div><div class="clip-edit"><input class="clip-tags-input" placeholder="标签，用 / 或 , 分隔" value="${escapeAttr(clip.tags||"")}" /><textarea class="clip-note-input" placeholder="写一点你的想法……">${escapeHtml(clip.note||"")}</textarea><div class="clip-actions"><button class="save-clip-edit">保存</button><button class="secondary-btn copy-clip">复制</button><button class="danger-btn delete-clip">删除</button></div></div>`;card.querySelectorAll(".tag-pill").forEach(el=>{el.onclick=()=>{activeTag=el.dataset.tag;switchView("tags")}});card.querySelector(".save-clip-edit").onclick=async()=>{const book=getBook(clip.bookId),local=book?.clips.find(c=>c.id===clip.id);if(!local)return;local.tags=card.querySelector(".clip-tags-input").value.trim();local.note=card.querySelector(".clip-note-input").value.trim();const {error}=await supabaseClient.from("clips").update({tags:local.tags,note:local.note}).eq("id",clip.id);if(error)return alert("更新失败："+error.message);saveLocalState();render()};card.querySelector(".copy-clip").onclick=async()=>{await navigator.clipboard.writeText(`《${clip.bookTitle}》${clip.page?" p."+clip.page:""}\n${clip.text}`);alert("已复制")};card.querySelector(".delete-clip").onclick=()=>deleteClip(clip.bookId,clip.id);return card}
 function parseTags(tags){return String(tags||"").split(/[\/,，、\s]+/).map(t=>t.trim().replace(/^#/,"")).filter(Boolean)}
-function renderTags(){
-  const tagList=$("tagList"),tagResult=$("tagResult"),counts=new Map();
-  allClips().forEach(c=>parseTags(c.tags).forEach(t=>counts.set(t,(counts.get(t)||0)+1)));
-  const tags=Array.from(counts.entries()).sort((a,b)=>b[1]-a[1]);tagList.innerHTML="";
-  if(!tags.length){tagList.innerHTML=`<p class="muted">还没有标签。你可以在书摘卡片里添加标签。</p>`;tagResult.innerHTML="";return}
-  tags.forEach(([tag,count])=>{const pill=document.createElement("button");pill.className="tag-pill";pill.textContent=`#${tag} ${count}`;pill.onclick=()=>{activeTag=tag;renderTags()};tagList.appendChild(pill)});
-  const selected=activeTag||tags[0][0];activeTag=selected;tagResult.innerHTML="";allClips().filter(c=>parseTags(c.tags).includes(selected)).forEach(c=>tagResult.appendChild(createClipCard(c)));
-}
+function renderTags(){const tagList=$("tagList"),tagResult=$("tagResult"),counts=new Map();allClips().forEach(c=>parseTags(c.tags).forEach(t=>counts.set(t,(counts.get(t)||0)+1)));const tags=Array.from(counts.entries()).sort((a,b)=>b[1]-a[1]);tagList.innerHTML="";if(!tags.length){tagList.innerHTML=`<p class="muted">还没有标签。你可以在书摘卡片里添加标签。</p>`;tagResult.innerHTML="";return}tags.forEach(([tag,count])=>{const pill=document.createElement("button");pill.className="tag-pill";pill.textContent=`#${tag} ${count}`;pill.onclick=()=>{activeTag=tag;renderTags()};tagList.appendChild(pill)});const selected=activeTag||tags[0][0];activeTag=selected;tagResult.innerHTML="";allClips().filter(c=>parseTags(c.tags).includes(selected)).forEach(c=>tagResult.appendChild(createClipCard(c)))}
 function renderStats(){const clips=allClips();$("statBooks").textContent=state.books.length;$("statClips").textContent=clips.length;const tags=new Set();clips.forEach(c=>parseTags(c.tags).forEach(t=>tags.add(t)));$("statTags").textContent=tags.size}
-
-async function addBook(){
-  const title=$("bookTitle").value.trim(),author=$("bookAuthor").value.trim();if(!title)return alert("请先输入书名");
-  const {data,error}=await supabaseClient.from("books").insert({user_id:currentUser.id,title,author}).select().single();
-  if(error)return alert("新增书籍失败："+error.message);
-  state.books.unshift({id:data.id,title:data.title,author:data.author||"",createdAt:data.created_at,clips:[]});$("bookTitle").value="";$("bookAuthor").value="";saveLocalState();render();
-}
-async function deleteBook(bookId){
-  const book=getBook(bookId);if(!book)return;if(!confirm(`确定删除《${book.title}》及其所有摘录吗？`))return;
-  const {error}=await supabaseClient.from("books").delete().eq("id",bookId);if(error)return alert("删除书籍失败："+error.message);
-  state.books=state.books.filter(b=>b.id!==bookId);saveLocalState();render();
-}
-async function deleteClip(bookId,clipId){
-  if(!confirm("确定删除这条书摘吗？"))return;
-  const {error}=await supabaseClient.from("clips").delete().eq("id",clipId);if(error)return alert("删除失败："+error.message);
-  const book=getBook(bookId);if(book)book.clips=book.clips.filter(c=>c.id!==clipId);saveLocalState();render();
-}
-
+async function addBook(){const title=$("bookTitle").value.trim(),author=$("bookAuthor").value.trim();if(!title)return alert("请先输入书名");const {data,error}=await supabaseClient.from("books").insert({user_id:currentUser.id,title,author}).select().single();if(error)return alert("新增书籍失败："+error.message);state.books.unshift({id:data.id,title:data.title,author:data.author||"",createdAt:data.created_at,clips:[]});$("bookTitle").value="";$("bookAuthor").value="";saveLocalState();render()}
+async function deleteBook(bookId){const book=getBook(bookId);if(!book)return;if(!confirm(`确定删除《${book.title}》及其所有摘录吗？`))return;const {error}=await supabaseClient.from("books").delete().eq("id",bookId);if(error)return alert("删除书籍失败："+error.message);state.books=state.books.filter(b=>b.id!==bookId);saveLocalState();render()}
+async function deleteClip(bookId,clipId){if(!confirm("确定删除这条书摘吗？"))return;const {error}=await supabaseClient.from("clips").delete().eq("id",clipId);if(error)return alert("删除失败："+error.message);const book=getBook(bookId);if(book)book.clips=book.clips.filter(c=>c.id!==clipId);saveLocalState();render()}
 function handleImageUpload(e){const file=e.target.files[0];if(!file)return;imageFile=file;selection=null;hideSelection();$("previewImage").src=URL.createObjectURL(file);$("cropCard").classList.remove("hidden");$("ocrStatus").textContent="图片已载入。请拖拽框选文字区域。"}
 function getPoint(e){const t=e.touches?.[0]||e.changedTouches?.[0];const x=t?t.clientX:e.clientX,y=t?t.clientY:e.clientY,rect=$("imageStage").getBoundingClientRect();return{x:x-rect.left+$("imageStage").scrollLeft,y:y-rect.top+$("imageStage").scrollTop}}
 function startSelection(e){if(!$("previewImage").src)return;e.preventDefault();dragStart=getPoint(e);selection={x:dragStart.x,y:dragStart.y,w:0,h:0};updateSelectionBox()}
@@ -180,28 +37,14 @@ function endSelection(){if(!dragStart)return;dragStart=null;if(!selection||selec
 function updateSelectionBox(){if(!selection)return hideSelection();const box=$("selectionBox");box.classList.remove("hidden");box.style.left=`${selection.x}px`;box.style.top=`${selection.y}px`;box.style.width=`${selection.w}px`;box.style.height=`${selection.h}px`}
 function hideSelection(){$("selectionBox").classList.add("hidden")}
 function clearSelection(){selection=null;hideSelection();$("ocrStatus").textContent="已清除框选。"}
-
-async function runOcr(useCrop=true){
-  if(!imageFile)return alert("请先选择或拍摄书页照片");
-  let sourceBlob=imageFile;
-  if(useCrop){if(!selection)return alert("请先框选要识别的文字区域");sourceBlob=await makeCroppedImage()}else sourceBlob=await makeFullImage();
-  const languageHint=$("ocrLanguage").value,shouldClean=$("autoClean").checked;
-  $("ocrCropBtn").disabled=true;$("ocrFullBtn").disabled=true;$("rawOcrBox").classList.add("hidden");$("rawOcrText").textContent="";
-  try{$("ocrStatus").textContent="正在使用 Google Vision OCR……";const base64Image=await blobToDataUrl(sourceBlob);const rawText=await runGoogleVisionOcr(base64Image,languageHint);
-    $("rawOcrText").textContent=rawText;$("rawOcrBox").classList.remove("hidden");
-    if(shouldClean&&rawText.trim()){ $("ocrStatus").textContent="OCR 完成，正在 AI 修正……"; const cleaned=await runAiClean(rawText,languageHint); $("ocrText").value=normalizeBookText(cleaned); $("ocrStatus").textContent="OCR + AI 修正完成。"; }
-    else {$("ocrText").value=normalizeBookText(rawText);$("ocrStatus").textContent="OCR 完成。AI 修正当前关闭。";}
-  }catch(error){console.error(error);$("ocrStatus").textContent="识别失败："+error.message}finally{$("ocrCropBtn").disabled=false;$("ocrFullBtn").disabled=false}
-}
+async function runOcr(useCrop=true){if(!imageFile)return alert("请先选择或拍摄书页照片");let sourceBlob=imageFile;if(useCrop){if(!selection)return alert("请先框选要识别的文字区域");sourceBlob=await makeCroppedImage()}else sourceBlob=await makeFullImage();const languageHint=$("ocrLanguage").value,shouldClean=$("autoClean").checked;$("ocrCropBtn").disabled=true;$("ocrFullBtn").disabled=true;$("rawOcrBox").classList.add("hidden");$("rawOcrText").textContent="";try{$("ocrStatus").textContent="正在使用 Google Vision OCR……";const base64Image=await blobToDataUrl(sourceBlob);const rawText=await runGoogleVisionOcr(base64Image,languageHint);$("rawOcrText").textContent=rawText;$("rawOcrBox").classList.remove("hidden");if(shouldClean&&rawText.trim()){$("ocrStatus").textContent="OCR 完成，正在 AI 修正……";const cleaned=await runAiClean(rawText,languageHint);$("ocrText").value=normalizeBookText(cleaned);$("ocrStatus").textContent="OCR + AI 修正完成。"}else{$("ocrText").value=normalizeBookText(rawText);$("ocrStatus").textContent="OCR 完成。AI 修正当前关闭。"}}catch(error){console.error(error);$("ocrStatus").textContent="识别失败："+error.message}finally{$("ocrCropBtn").disabled=false;$("ocrFullBtn").disabled=false}}
 async function runGoogleVisionOcr(base64Image,languageHint){const r=await fetch("/api/ocr",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({base64Image,languageHint})});const data=await safeJson(r);if(!r.ok||!data.ok)throw new Error(data.error||"Google Vision OCR failed");return data.text||""}
 async function runAiClean(rawText,languageHint){const r=await fetch("/api/clean",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({rawText,languageHint})});const data=await safeJson(r);if(!r.ok||!data.ok)throw new Error(data.error||"AI correction failed");return data.text||rawText}
 async function safeJson(response){const text=await response.text();try{return JSON.parse(text)}catch{return{ok:false,error:`服务器返回的不是 JSON：${text.slice(0,160)}`}}}
-
 async function makeFullImage(){const img=$("previewImage"),canvas=$("cropCanvas"),ctx=canvas.getContext("2d");canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;ctx.drawImage(img,0,0);preprocessCanvas(ctx,canvas.width,canvas.height);return new Promise(resolve=>canvas.toBlob(blob=>resolve(blob),"image/jpeg",.92))}
 async function makeCroppedImage(){const img=$("previewImage"),canvas=$("cropCanvas"),ctx=canvas.getContext("2d");const scaleX=img.naturalWidth/img.clientWidth,scaleY=img.naturalHeight/img.clientHeight;const sx=Math.max(0,Math.round(selection.x*scaleX)),sy=Math.max(0,Math.round(selection.y*scaleY)),sw=Math.min(img.naturalWidth-sx,Math.round(selection.w*scaleX)),sh=Math.min(img.naturalHeight-sy,Math.round(selection.h*scaleY));canvas.width=sw;canvas.height=sh;ctx.drawImage(img,sx,sy,sw,sh,0,0,sw,sh);preprocessCanvas(ctx,sw,sh);return new Promise(resolve=>canvas.toBlob(blob=>resolve(blob),"image/jpeg",.92))}
 function preprocessCanvas(ctx,width,height){try{const imageData=ctx.getImageData(0,0,width,height),data=imageData.data,contrast=1.25,intercept=128*(1-contrast);for(let i=0;i<data.length;i+=4){const gray=.299*data[i]+.587*data[i+1]+.114*data[i+2];const value=Math.max(0,Math.min(255,gray*contrast+intercept));data[i]=value;data[i+1]=value;data[i+2]=value}ctx.putImageData(imageData,0,0)}catch(e){console.warn("Image preprocessing skipped",e)}}
 function blobToDataUrl(blob){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(blob)})}
-
 function splitSentences(){const text=$("ocrText").value.trim();if(!text)return alert("没有可分句的文字");const cleaned=text.replace(/\n+/g," ").replace(/\s+/g," ").trim();const sentences=cleaned.split(/(?<=[。！？!?；;])\s*/).map(s=>s.trim()).filter(s=>s.length>=4);const list=$("sentenceList");list.innerHTML="";if(!sentences.length){list.innerHTML=`<p class="muted">没有识别出完整句子。你可以直接选中文字保存。</p>`;return}sentences.forEach(sentence=>{const card=document.createElement("div");card.className="sentence-card";card.innerHTML=`<div>${escapeHtml(sentence)}</div><button>保存这句</button>`;card.querySelector("button").onclick=()=>saveClip(sentence);list.appendChild(card)})}
 function saveSelectedText(){const textarea=$("ocrText");const selected=textarea.value.slice(textarea.selectionStart,textarea.selectionEnd).trim();if(!selected)return alert("请先在识别结果中选中一句或一段文字");saveClip(selected)}
 async function saveClip(text){const bookId=$("captureBookSelect").value,book=getBook(bookId);if(!book)return alert("请先选择一本书");if(!text.trim())return alert("没有可保存的文字");const page=$("pageNumber").value.trim();const {data,error}=await supabaseClient.from("clips").insert({user_id:currentUser.id,book_id:book.id,text:text.trim(),page,note:"",tags:""}).select().single();if(error)return alert("保存书摘失败："+error.message);book.clips.unshift({id:data.id,text:data.text,page:data.page||"",note:data.note||"",tags:data.tags||"",createdAt:data.created_at});saveLocalState();render();alert("已保存")}
@@ -209,10 +52,6 @@ function exportJson(){const blob=new Blob([JSON.stringify(state,null,2)],{type:"
 function normalizeBookText(text){return String(text||"").replace(/([^\n。！？!?；;：:])\n(?=[^\n])/g,"$1").replace(/(?<=[\u4e00-\u9fff]),(?=[\u4e00-\u9fff])/g,"，").replace(/(?<=[\u4e00-\u9fff]):(?=[\u4e00-\u9fff])/g,"：").replace(/(?<=[\u4e00-\u9fff]);(?=[\u4e00-\u9fff])/g,"；").replace(/(?<=[\u4e00-\u9fff])\?(?=[\u4e00-\u9fff])/g,"？").replace(/(?<=[\u4e00-\u9fff])!(?=[\u4e00-\u9fff])/g,"！").replace(/[ \t]+/g," ").replace(/\n{3,}/g,"\n\n").trim()}
 function escapeHtml(str){return String(str).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")}
 function escapeAttr(str){return escapeHtml(str).replaceAll('"',"&quot;")}
-function bindEvents(){
-  $("signUpBtn").onclick=signUp;$("signInBtn").onclick=signIn;$("logoutBtn").onclick=signOut;$("syncBtn").onclick=syncNow;$("quickSyncBtn").onclick=syncNow;$("exportBtn").onclick=exportJson;$("addBookBtn").onclick=addBook;$("globalSearchInput").oninput=renderClipsFeed;$("imageInput").onchange=handleImageUpload;$("ocrCropBtn").onclick=()=>runOcr(true);$("ocrFullBtn").onclick=()=>runOcr(false);$("clearSelectionBtn").onclick=clearSelection;$("splitBtn").onclick=splitSentences;$("saveSelectedTextBtn").onclick=saveSelectedText;$("floatingAddBtn").onclick=()=>switchView("capture");
-  document.querySelectorAll(".nav-item").forEach(btn=>{btn.onclick=()=>switchView(btn.dataset.view)});
-  const stage=$("imageStage");stage.addEventListener("mousedown",startSelection);stage.addEventListener("mousemove",moveSelection);window.addEventListener("mouseup",endSelection);stage.addEventListener("touchstart",startSelection,{passive:false});stage.addEventListener("touchmove",moveSelection,{passive:false});stage.addEventListener("touchend",endSelection)
-}
+function bindEvents(){$("signUpBtn").onclick=signUp;$("signInBtn").onclick=signIn;$("logoutBtn").onclick=signOut;$("syncBtn").onclick=syncNow;$("quickSyncBtn").onclick=syncNow;$("exportBtn").onclick=exportJson;$("addBookBtn").onclick=addBook;$("globalSearchInput").oninput=renderClipsFeed;$("imageInput").onchange=handleImageUpload;$("ocrCropBtn").onclick=()=>runOcr(true);$("ocrFullBtn").onclick=()=>runOcr(false);$("clearSelectionBtn").onclick=clearSelection;$("splitBtn").onclick=splitSentences;$("saveSelectedTextBtn").onclick=saveSelectedText;$("floatingAddBtn").onclick=()=>switchView("capture");document.querySelectorAll(".nav-item").forEach(btn=>{btn.onclick=()=>switchView(btn.dataset.view)});const stage=$("imageStage");stage.addEventListener("mousedown",startSelection);stage.addEventListener("mousemove",moveSelection);window.addEventListener("mouseup",endSelection);stage.addEventListener("touchstart",startSelection,{passive:false});stage.addEventListener("touchmove",moveSelection,{passive:false});stage.addEventListener("touchend",endSelection)}
 async function syncNow(){await loadCloudData();render();alert("已同步")}
 initApp();

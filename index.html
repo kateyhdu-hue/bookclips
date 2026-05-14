@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>BookClips 摘书 v2</title>
+  <title>BookClips 摘书 v2.1</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -53,36 +53,18 @@
         <div id="bookList" class="book-list"></div>
       </section>
 
-      <section id="viewTags" class="view">
-        <div id="tagList" class="tag-cloud"></div>
-        <div id="tagResult" class="clips-feed"></div>
-      </section>
-
       <section id="viewCapture" class="view">
         <div class="capture-card">
           <h2>新增摘录</h2>
           <label class="field-label">选择书籍</label>
           <select id="captureBookSelect"></select>
-
           <label class="field-label">页码</label>
           <input id="pageNumber" placeholder="例如 37" />
-
           <label class="field-label">上传 / 拍照书页</label>
           <input id="imageInput" type="file" accept="image/*" capture="environment" />
-
           <div class="settings-grid">
-            <label>
-              语言
-              <select id="ocrLanguage">
-                <option value="zh" selected>中文 / 中英混排</option>
-                <option value="en">英文</option>
-              </select>
-            </label>
-
-            <label class="checkbox-label">
-              <input id="autoClean" type="checkbox" />
-              AI 修正 OCR（默认关闭）
-            </label>
+            <label>语言<select id="ocrLanguage"><option value="zh" selected>中文 / 中英混排</option><option value="en">英文</option></select></label>
+            <label class="checkbox-label"><input id="autoClean" type="checkbox" />AI 修正 OCR（默认关闭）</label>
           </div>
         </div>
 
@@ -104,10 +86,7 @@
         <div class="capture-card">
           <h3>识别结果</h3>
           <textarea id="ocrText" placeholder="OCR 结果会显示在这里，也可以手动粘贴或编辑。"></textarea>
-          <details id="rawOcrBox" class="raw-box hidden">
-            <summary>查看原始 OCR 文本</summary>
-            <pre id="rawOcrText"></pre>
-          </details>
+          <details id="rawOcrBox" class="raw-box hidden"><summary>查看原始 OCR 文本</summary><pre id="rawOcrText"></pre></details>
           <div class="button-row">
             <button id="splitBtn">自动分句</button>
             <button id="saveSelectedTextBtn" class="secondary-btn">保存选中文字</button>
@@ -118,6 +97,11 @@
           <h3>选择句子保存</h3>
           <div id="sentenceList" class="sentence-list"></div>
         </div>
+      </section>
+
+      <section id="viewTags" class="view">
+        <div id="tagList" class="tag-cloud"></div>
+        <div id="tagResult" class="clips-feed"></div>
       </section>
 
       <section id="viewProfile" class="view">
@@ -135,7 +119,6 @@
             <button id="logoutBtn" class="danger-btn">退出登录</button>
           </div>
         </div>
-
         <div class="profile-card">
           <h3>使用提示</h3>
           <p class="muted">AI 修正默认关闭。开启后会调用 OpenAI API，需要你已开通 API billing。</p>
